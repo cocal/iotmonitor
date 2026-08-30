@@ -1,0 +1,21 @@
+[Unit]
+Description=Power monitor telemetry API
+After=network.target
+
+[Service]
+Type=simple
+User=iotmonitor
+Group=iotmonitor
+WorkingDirectory=/opt/iotmonitor/api
+EnvironmentFile=/etc/iotmonitor/api.env
+ExecStart=/usr/bin/python3 /opt/iotmonitor/api/app.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iotmonitor
+
+[Install]
+WantedBy=multi-user.target

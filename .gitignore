@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+api/data/*.db
+api/data/*.db-*
+*.log
+.DS_Store

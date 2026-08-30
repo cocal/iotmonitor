@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1829">
+  <title>原始帧监控 | IoT Monitor</title>
+  <link rel="stylesheet" href="./frames.css?v=20260830">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="返回 IoT Monitor 首页">
+        <span class="brand-mark" aria-hidden="true">IM</span>
+        <span class="brand-copy"><strong>IoT Monitor</strong><small>DL/T 645 CAPTURE</small></span>
+      </a>
+      <nav class="topbar-nav" aria-label="监控导航">
+        <a href="./">电力趋势</a>
+        <a class="is-active" href="./frames.html" aria-current="page">原始帧</a>
+        <a href="/doc/">API 文档</a>
+      </nav>
+      <span class="connection-state"><span class="connection-dot" aria-hidden="true"></span><span id="connection-label">实时连接</span></span>
+    </header>
+
+    <main id="main-content" class="dashboard" tabindex="-1">
+      <section class="page-heading" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">/API/V1/DLT645/FRAME</p>
+          <h1 id="page-title">原始帧监控</h1>
+          <p class="heading-meta">接收归档与数据库同步状态</p>
+        </div>
+        <div class="heading-actions">
+          <span class="sync-badge"><span class="sync-dot" aria-hidden="true"></span><span id="sync-label">归档正常</span></span>
+          <button id="refresh-button" class="icon-button" type="button" aria-label="刷新原始帧" title="刷新原始帧">↻</button>
+        </div>
+      </section>
+
+      <section class="metric-grid" aria-label="原始帧关键指标">
+        <article class="metric-card metric-card-cyan"><span class="metric-label">A 相电压</span><div class="metric-reading"><strong id="metric-voltage">--</strong><b>V</b></div><span class="metric-foot" id="metric-voltage-time">等待有效帧</span></article>
+        <article class="metric-card metric-card-green"><span class="metric-label">A 相电流</span><div class="metric-reading"><strong id="metric-current">--</strong><b>A</b></div><span class="metric-foot" id="metric-current-time">等待有效帧</span></article>
+        <article class="metric-card metric-card-blue"><span class="metric-label">瞬时有功功率</span><div class="metric-reading"><strong id="metric-power">--</strong><b>W</b></div><span class="metric-foot" id="metric-power-time">等待有效帧</span></article>
+        <article class="metric-card metric-card-amber"><span class="metric-label">已接收原始帧</span><div class="metric-reading"><strong id="metric-total">0</strong><b>条</b></div><span class="metric-foot" id="metric-latest-date">等待数据</span></article>
+      </section>
+
+      <section class="trend-grid" aria-label="三项电力指标趋势">
+        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">ACTIVE POWER</p><h2>瞬时有功功率趋势</h2></div><span class="chart-current"><strong id="chart-power-value">--</strong> W</span></div><div id="chart-power" class="trend-chart" role="img" aria-label="瞬时有功功率趋势图"></div></article>
+        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">VOLTAGE</p><h2>A 相电压趋势</h2></div><span class="chart-current"><strong id="chart-voltage-value">--</strong> V</span></div><div id="chart-voltage" class="trend-chart trend-chart-small" role="img" aria-label="A 相电压趋势图"></div></article>
+        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">CURRENT</p><h2>A 相电流趋势</h2></div><span class="chart-current"><strong id="chart-current-value">--</strong> A</span></div><div id="chart-current" class="trend-chart trend-chart-small" role="img" aria-label="A 相电流趋势图"></div></article>
+      </section>
+
+      <section class="toolbar" aria-label="原始帧筛选">
+        <label class="search-field"><span>设备</span><input id="device-filter" type="search" placeholder="device_id" autocomplete="off"></label>
+        <label class="select-field"><span>方向</span><select id="direction-filter"><option value="">全部</option><option value="rx">RX 接收</option><option value="tx">TX 发送</option></select></label>
+        <button id="clear-button" class="text-button" type="button">清除筛选</button>
+        <span class="toolbar-status" id="toolbar-status">每 5 秒自动刷新</span>
+      </section>
+
+      <section class="table-panel" aria-labelledby="table-title">
+        <div class="panel-heading">
+          <div><p class="panel-kicker">CAPTURE LOG</p><h2 id="table-title">最近原始帧</h2></div>
+          <span class="row-count" id="row-count">0 条</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">捕获时间</th><th scope="col">设备 / 测点</th><th scope="col">方向</th><th scope="col">序列</th><th scope="col">原始帧 HEX</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead>
+            <tbody id="frame-rows"></tbody>
+          </table>
+          <div id="empty-state" class="empty-state" hidden>
+            <span class="empty-mark" aria-hidden="true">∅</span>
+            <strong>暂无匹配帧</strong>
+            <span>设备上报后，原始帧会出现在这里。</span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="dashboard-footer"><span>存储：本地 JSONL + Monitor Center PostgreSQL / iot_dlt645_frames</span><span id="footer-updated">尚未同步</span></footer>
+    </main>
+  </div>
+
+  <dialog id="frame-dialog" class="frame-dialog">
+    <div class="dialog-head"><div><p class="panel-kicker">FRAME DETAIL</p><h2>原始帧详情</h2></div><button id="close-dialog" class="icon-button icon-button-light" type="button" aria-label="关闭详情" title="关闭详情">×</button></div>
+    <dl class="detail-grid" id="frame-detail"></dl>
+    <div class="hex-detail"><span>FRAME_HEX</span><code id="dialog-hex"></code></div>
+  </dialog>
+  <script src="./frames.js"></script>
+</body>
+</html>

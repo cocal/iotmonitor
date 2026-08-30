@@ -1,0 +1,14 @@
+{
+  "site_id": "home-pv",
+  "device_id": "esp8266-12f-001",
+  "measurement_point_id": "inverter-ac-output",
+  "protocol": "DL/T 645-2007",
+  "frames": [
+    {
+      "sequence": 1042,
+      "captured_at": "2026-08-16T04:01:05+08:00",
+      "direction": "rx",
+      "frame_hex": "68010203040568910433333333333316"
+    }
+  ]
+}

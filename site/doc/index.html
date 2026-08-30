@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="IoT Monitor 电力表原始帧 API 文档：标准 443 域名入口、裸 IP 调试入口、DL/T 645-2007 和 ESP8266-12F 示例。">
+  <title>电力遥测 API 文档 | IoT Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/doc/styles.css">
+</head>
+<body class="api-page">
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="IoT Monitor 首页">
+        <span class="brand-mark" aria-hidden="true">IM</span>
+        <span>
+          <strong>IoT Monitor</strong>
+          <small>电力遥测 API</small>
+        </span>
+      </a>
+      <div class="header-actions">
+        <span class="api-status"><span class="status-dot" aria-hidden="true"></span> API v1 · 443</span>
+        <a class="dashboard-link" href="/dashboard/">监控页面</a>
+        <a class="download-link" href="/">方案文档</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="api-shell">
+    <aside class="api-sidebar" aria-label="接口文档目录">
+      <div class="sidebar-kicker">API REFERENCE</div>
+      <h2>目录</h2>
+      <nav>
+        <a href="#quick-start">快速开始</a>
+        <a href="#endpoint">上报接口</a>
+        <a href="#request">请求体</a>
+        <a href="#esp8266">ESP8266-12F</a>
+        <a href="#1.6.8">Arduino 1.6.8</a>
+        <a href="#response">响应与错误</a>
+        <a href="#health">健康检查</a>
+        <a href="#rules">重试与限制</a>
+      </nav>
+      <div class="sidebar-meta">
+        <span>Transport</span>
+        <strong>HTTPS / JSON</strong>
+        <span>Authentication</span>
+        <strong>Bearer Token</strong>
+        <span>Ingress</span>
+        <strong>TCP 443</strong>
+      </div>
+    </aside>
+
+    <main id="main-content" class="api-main" tabindex="-1">
+      <section class="api-hero" aria-labelledby="page-title">
+        <div class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span>设备上报接口 · v1</div>
+        <h1 id="page-title">电力遥测 API</h1>
+        <p class="hero-copy">让 ESP8266-12F、ESPHome 节点或 BLE 网关把 DDSU666 的 DL/T 645-2007 原始帧安全写入监控服务，业务解析留在服务器。</p>
+        <div class="hero-endpoint">
+          <span class="method-badge method-post">POST</span>
+          <code>https://iot.ohmyskills.top/api/v1/dlt645/frame</code>
+          <button class="copy-button" type="button" data-copy-target="#endpoint-url" aria-label="复制上报接口地址">复制</button>
+          <span id="endpoint-url" class="sr-only">https://iot.ohmyskills.top/api/v1/dlt645/frame</span>
+        </div>
+      </section>
+
+      <section class="port-note" aria-labelledby="port-title">
+        <div class="section-label" id="port-title">端口关系</div>
+        <div class="port-grid">
+          <div><span>浏览器文档</span><code>https://iot.ohmyskills.top/doc</code><small>公网 443 · 静态文档</small></div>
+          <div><span>域名 API</span><code>https://iot.ohmyskills.top</code><small>公网 443 · 受信任证书</small></div>
+          <div><span>裸 IP 调试</span><code>http://&lt;PUBLIC_IP&gt;</code><small>受控网络 · 不用于生产</small></div>
+        </div>
+        <p class="warning-copy"><strong>部署提示：</strong>域名和裸 IP 节点运行同一套原始帧服务。域名请求走标准 443；裸 IP 仅用于 VPN/LAN 或临时联调。Arduino 1.6.8 兼容固件当前使用 TLS 加密但跳过服务器身份校验，以避免证书续期后重新烧录。</p>
+      </section>
+
+      <section class="api-section" id="quick-start" aria-labelledby="quick-start-title">
+        <div class="section-heading"><span>01</span><h2 id="quick-start-title">快速开始</h2></div>
+        <div class="steps-grid">
+          <div class="step-item"><b>01</b><div><strong>准备身份</strong><p>为设备分配 site_id、device_id、measurement_point_id，并取得独立 Bearer Token。</p></div></div>
+          <div class="step-item"><b>02</b><div><strong>读取原文</strong><p>ESP8266 通过隔离 RS485 收集 DL/T 645-2007 原始字节，不在固件中解码。</p></div></div>
+          <div class="step-item"><b>03</b><div><strong>提交帧</strong><p>每个原始帧使用单调递增的 sequence。网络失败时重复发送同一帧即可重试。</p></div></div>
+        </div>
+      </section>
+
+      <section class="api-section" id="endpoint" aria-labelledby="endpoint-title">
+        <div class="section-heading"><span>02</span><h2 id="endpoint-title">上报接口</h2></div>
+        <div class="endpoint-card">
+          <div class="endpoint-card-head"><span class="method-badge method-post">POST</span><code>/api/v1/dlt645/frame</code><span class="endpoint-note">需要鉴权</span></div>
+          <p>设备将一个测量点的 1 条或多条 DL/T 645-2007 原始帧提交到 API。服务器只记录原文并返回 202 Accepted。</p>
+        </div>
+        <div class="subheading"><h3>请求头</h3><span>Headers</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>名称</th><th>值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><code>Authorization</code></td><td><code>Bearer &lt;DEVICE_TOKEN&gt;</code></td><td>设备独立令牌，不要写入网页或公开仓库。</td></tr>
+              <tr><td><code>Content-Type</code></td><td><code>application/json</code></td><td>请求体必须是 UTF-8 JSON。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="api-section" id="request" aria-labelledby="request-title">
+        <div class="section-heading"><span>03</span><h2 id="request-title">请求体</h2></div>
+        <div class="code-card">
+          <div class="code-card-head"><span>JSON</span><button class="copy-button copy-dark" type="button" data-copy-target="#json-example">复制</button></div>
+          <pre><code id="json-example">{
+  "site_id": "home-pv",
+  "device_id": "esp8266-12f-001",
+  "measurement_point_id": "inverter-ac-output",
+  "protocol": "DL/T 645-2007",
+  "frames": [
+    {
+      "sequence": 1042,
+      "captured_at": "2026-08-16T04:01:05+08:00",
+      "direction": "rx",
+      "frame_hex": "68010203040568910433333333333316"
+    }
+  ]
+}</code></pre>
+        </div>
+        <div class="subheading"><h3>字段约束</h3><span>Payload</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>规则</th></tr></thead>
+            <tbody>
+              <tr><td><code>site_id</code></td><td>string</td><td>是</td><td>1～64 个字母、数字、.、_、:、-。</td></tr>
+              <tr><td><code>device_id</code></td><td>string</td><td>是</td><td>设备身份，建议烧录板号，例如 esp8266-12f-001。</td></tr>
+              <tr><td><code>measurement_point_id</code></td><td>string</td><td>是</td><td>测量点身份，例如 inverter-ac-output。</td></tr>
+              <tr><td><code>protocol</code></td><td>string</td><td>是</td><td>固定为 DL/T 645-2007。</td></tr>
+              <tr><td><code>frames</code></td><td>array</td><td>是</td><td>每批 1～100 帧；请求体最大 256 KiB。</td></tr>
+              <tr><td><code>sequence</code></td><td>integer</td><td>是</td><td>0～2^63-1；同一设备和测量点单调递增。</td></tr>
+              <tr><td><code>captured_at</code></td><td>RFC 3339</td><td>是</td><td>必须带时区，例如 +08:00 或 Z。</td></tr>
+              <tr><td><code>direction</code></td><td>string</td><td>否</td><td>tx 或 rx，默认 rx。</td></tr>
+              <tr><td><code>frame_hex</code></td><td>string</td><td>是</td><td>偶数长度十六进制原文；服务端不解析帧内容。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="api-section" id="esp8266" aria-labelledby="esp8266-title">
+        <div class="section-heading"><span>04</span><h2 id="esp8266-title">ESP8266-12F 请求示例</h2></div>
+        <p>下面示例使用 Arduino ESP8266 Core 3.x 的 ESP8266HTTPClient。它演示联网、TLS 请求、Bearer Token 和原始帧上报；frameHex 应替换为 RS485 UART 收到的完整 DL/T 645-2007 字节序列。</p>
+        <div class="code-card code-card-large">
+          <div class="code-card-head"><span>Arduino C++ · ESP8266-12F</span><button class="copy-button copy-dark" type="button" data-copy-target="#esp8266-example">复制</button></div>
+          <pre><code id="esp8266-example">#include &lt;Arduino.h&gt;
+#include &lt;ESP8266WiFi.h&gt;
+#include &lt;ESP8266HTTPClient.h&gt;
+#include &lt;WiFiClientSecureBearSSL.h&gt;
+
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* DEVICE_TOKEN = "YOUR_DEVICE_TOKEN";
+const char* API_URL = "https://iot.ohmyskills.top/api/v1/dlt645/frame";
+
+BearSSL::WiFiClientSecure tlsClient;
+uint64_t sequenceNumber = 1042;
+
+void connectWifi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+}
+
+bool postRawFrame(const String&amp; frameHex, const char* direction) {
+  HTTPClient http;
+  if (!http.begin(tlsClient, API_URL)) {
+    return false;
+  }
+  http.setTimeout(10000);
+
+  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  http.addHeader("Content-Type", "application/json");
+
+  const uint64_t sequence = sequenceNumber;
+  String payload = "{\"site_id\":\"home-pv\",\"device_id\":\"esp8266-12f-001\",";
+  payload += "\"measurement_point_id\":\"inverter-ac-output\",";
+  payload += "\"protocol\":\"DL/T 645-2007\",\"frames\":[{";
+  payload += "\"sequence\":" + String(sequence) + ",";
+  payload += "\"captured_at\":\"2026-08-16T04:01:05+08:00\",";
+  payload += "\"direction\":\"" + String(direction) + "\",";
+  payload += "\"frame_hex\":\"" + frameHex + "\"}]}";
+
+  int status = http.POST(payload);
+  String response = http.getString();
+  http.end();
+
+  Serial.printf("HTTP %d\n%s\n", status, response.c_str());
+  if (status != 202) return false;
+  sequenceNumber++;
+  return true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  connectWifi();
+
+  // 仅用于无 CA 配置的桌面联调，不校验证书身份。
+  // 生产环境应删除下一行，并加载域名 CA 后调用 setTrustAnchors(&amp;cert)。
+  tlsClient.setInsecure();
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWifi();
+  }
+
+  String frameHex = "68010203040568910433333333333316";
+  postRawFrame(frameHex, "rx");
+  delay(5000);
+}</code></pre>
+        </div>
+        <div class="callout callout-blue"><strong>采集边界：</strong>示例中的 frameHex 只是占位原文。正式固件应从 UART 缓冲区复制完整帧并转成十六进制；不要在 ESP8266 上计算数据标识、加 0x33、校验 CS 或换算功率。时间戳应通过 NTP 校时。</div>
+      </section>
+
+      <section class="api-section" id="1.6.8" aria-labelledby="arduino-168-title">
+        <div class="section-heading"><span>05</span><h2 id="arduino-168-title">Arduino IDE 1.6.8 完整程序</h2></div>
+        <p>这是给旧版 Windows 电脑和 ESP8266-12F 使用的兼容程序。程序通过 RS485 查询 DDSU666，将电表回复原样转换为 <code>frame_hex</code> 后上传；功率值仍由服务器解析。该版本直连 <code>192.144.142.237:8899</code>，已经使用 Arduino IDE 1.6.8 与 ESP8266 Core 2.3.0 本地编译通过。</p>
+
+        <div class="artifact-bar">
+          <div>
+            <span class="verified-pill">已编译验证</span>
+            <strong>ESP8266-12F legacy client</strong>
+            <small>Arduino 1.6.8 · ESP8266 Core 2.3.0 · Generic ESP8266 Module</small>
+          </div>
+          <div class="artifact-actions">
+            <a class="artifact-link artifact-primary" href="/doc/files/iotmonitor-esp8266-arduino-1.6.8-v2.zip" download>下载 ZIP</a>
+            <a class="artifact-link" href="/doc/files/iotmonitor_esp8266_legacy.ino" download>仅下载 .ino</a>
+            <a class="artifact-link" href="/doc/files/esp8266_api_simulator.ino" download>API 模拟程序</a>
+          </div>
+        </div>
+
+        <div class="subheading"><h3>推荐使用顺序</h3><span>Workflow</span></div>
+        <div class="steps-grid">
+          <div class="step-item"><b>01</b><div><strong>先测服务器</strong><p>开启模拟报文模式，不连接 DDSU666，确认 Wi-Fi、HTTPS、Token 和 API 正常。</p></div></div>
+          <div class="step-item"><b>02</b><div><strong>再接电表</strong><p>模拟上传成功后关闭模拟模式，填写电表地址并连接隔离 RS485 模块。</p></div></div>
+          <div class="step-item"><b>03</b><div><strong>观察日志</strong><p>从 GPIO2 的 TX-only 调试口查看 HTTP 状态；收到 202 表示服务器已接收。</p></div></div>
+        </div>
+
+        <div class="subheading"><h3>1. 准备 Arduino 环境</h3><span>Toolchain</span></div>
+        <ol class="usage-list">
+          <li>解压 ZIP，确保目录名和主文件名都是 <code>iotmonitor_esp8266_legacy</code>，然后双击其中的 <code>.ino</code>。</li>
+          <li>在开发板管理器中安装 <code>esp8266 by ESP8266 Community 2.3.0</code>。开发板管理器地址为 <code>http://arduino.esp8266.com/stable/package_esp8266com_index.json</code>。</li>
+          <li>在“工具”菜单中按下表选择开发板参数，然后先点击“验证/编译”。</li>
+        </ol>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Arduino 菜单项</th><th>选择值</th></tr></thead>
+            <tbody>
+              <tr><td>Board</td><td><code>Generic ESP8266 Module</code></td></tr>
+              <tr><td>Flash Mode</td><td><code>DIO</code></td></tr>
+              <tr><td>Flash Size</td><td><code>4M (1M SPIFFS)</code></td></tr>
+              <tr><td>CPU Frequency</td><td><code>80 MHz</code></td></tr>
+              <tr><td>Upload Speed</td><td><code>115200</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subheading"><h3>2. 填写通用配置</h3><span>Required</span></div>
+        <p>打开程序顶部的配置区，替换 Wi-Fi 和设备 Token。每台设备应使用独立、可吊销且仅允许写入本设备数据的 Token。</p>
+        <div class="code-card">
+          <div class="code-card-head"><span>必须修改</span><button class="copy-button copy-dark" type="button" data-copy-target="#arduino-168-config">复制</button></div>
+          <pre><code id="arduino-168-config">const char WIFI_SSID[] = "你的 Wi-Fi 名称";
+const char WIFI_PASSWORD[] = "你的 Wi-Fi 密码";
+const char DEVICE_TOKEN[] = "服务器分配的设备 Token";</code></pre>
+        </div>
+        <div class="callout callout-blue"><strong>旧版固件入口：</strong><code>POST https://192.144.142.237:8899/api/v1/dlt645/frame</code>。程序已固定该地址和端口，不经过域名、Cloudflare 或 443；烧录前只需填写 Wi-Fi 与这台 192 服务器分配的 Token。</div>
+        <div class="callout callout-red"><strong>TLS 兼容方式：</strong>ESP8266 Core 2.3.0 的 axTLS 仅连接服务器专用的 TLS 1.0 兼容端口，并且不调用 <code>verify()</code>。传输内容仍加密，但设备不验证服务器身份；中间人可能冒充服务器并取得 Token。此入口只给旧设备使用，每台设备应使用独立、可吊销的 Token。</div>
+
+        <div class="subheading"><h3>3. 先发送模拟报文</h3><span>API Test</span></div>
+        <p>第一次烧录可以直接下载“API 模拟程序”：它不初始化 RS485，启动后只发送一次固定报文并打印完整 HTTP 响应。也可以在完整程序里把开关改成 <code>true</code>，此时程序每 5 秒调用 <code>sendSimulatedFrame()</code>，不访问电表。</p>
+        <div class="code-card compact-code">
+          <div class="code-card-head"><span>模拟模式</span><button class="copy-button copy-dark" type="button" data-copy-target="#simulation-switch">复制</button></div>
+          <pre><code id="simulation-switch">const bool SEND_SIMULATED_FRAME = true;</code></pre>
+        </div>
+        <div class="callout callout-blue"><strong>模拟模式仍需要：</strong>正确的 Wi-Fi 和 Token；但不需要证书指纹、电表地址或 RS485 连接。日志出现 <code>HTTP status: 202</code> 和 <code>Uploaded simulated frame</code>，表示上报链路正常。</div>
+        <div class="callout callout-blue"><strong>日志串口：</strong>完整程序固定由 UART0/Serial 连接 RS485，日志固定从 UART1/Serial1 的 TX（GPIO2）输出。USB-TTL 的 RX 接 GPIO2、GND 接 GND，使用 115200/8N1，TX 线不要连接；<code>SEND_SIMULATED_FRAME</code> 只控制是否跳过电表查询。</div>
+
+        <div class="subheading"><h3>3.1 用电脑模拟电表</h3><span>RS485 Test</span></div>
+        <p>如果完整程序在真机上没有上传成功，可下载电脑端 <code>DL/T 645 电表模拟器</code>。它通过第二个 USB-RS485 适配器接到 ESP8266 的同一条 A/B 总线，收到查询后返回固定的合法响应；这样可以单独验证 <code>pollMeter()</code>、串口接收和 API 上报。</p>
+        <div class="artifact-bar">
+          <div><strong>电脑端模拟器</strong><small>Python 3 · USB-RS485 · 2400 / 8E1</small></div>
+          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="/doc/files/dlt645_meter_simulator.py" download>下载 .py</a><a class="artifact-link" href="/doc/files/meter-simulator-README.md" download>使用说明</a></div>
+        </div>
+        <div class="code-card compact-code">
+          <div class="code-card-head"><span>Windows</span><button class="copy-button copy-dark" type="button" data-copy-target="#meter-simulator-command">复制</button></div>
+          <pre><code id="meter-simulator-command">python -m pip install pyserial
+python dlt645_meter_simulator.py --port COM3</code></pre>
+        </div>
+        <div class="callout callout-red"><strong>接线注意：</strong>ESP8266 的 RS485 A/B 接 USB-RS485 的 A/B；不要把 USB-TTL 的 TX/RX 同时接到 GPIO1/GPIO3，否则会和电表串口冲突。模拟器地址必须与 <code>METER_ADDRESS</code> 完全一致。</div>
+
+        <div class="subheading"><h3>4. 切换到真实电表</h3><span>DDSU666</span></div>
+        <p>模拟测试成功后，把开关恢复为 <code>false</code>，按电表铭牌或通信手册填写六字节地址，并确认电压、电流和瞬时总有功功率的数据标识。地址在 DL/T 645 线路中采用低字节在前的顺序。</p>
+        <div class="code-card">
+          <div class="code-card-head"><span>真实电表模式</span><button class="copy-button copy-dark" type="button" data-copy-target="#real-meter-config">复制</button></div>
+          <pre><code id="real-meter-config">const bool SEND_SIMULATED_FRAME = false;
+
+const uint8_t METER_ADDRESS[6] = {
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // 按现场电表地址替换
+};
+const bool METER_ADDRESS_IS_CONFIGURED = true;
+
+// 程序内置三项查询：A 相电压、A 相电流、瞬时总有功功率。</code></pre>
+        </div>
+        <div class="code-card compact-code">
+          <div class="code-card-head"><span>A 相电流示例</span><button class="copy-button copy-dark" type="button" data-copy-target="#phase-a-current-example">复制</button></div>
+          <pre><code id="phase-a-current-example">请求: 68 [6 字节电表地址] 68 11 04 33 34 35 35 [CS] 16
+响应: 68 [6 字节电表地址] 68 91 07 33 34 35 35 33 33 33 [CS] 16
+结果: 电压、电流、功率均由服务端解析</code></pre>
+        </div>
+        <div class="callout callout-blue"><strong>数据流说明：</strong>程序依次查询 A 相电压、A 相电流和瞬时总有功功率，分别生成对应的 DL/T 645 请求并上传原始响应。<code>0x02030000</code> 即当前瞬时总有功功率查询，不再重复发送相同指令。ESP8266 只负责请求、接收和上传完整响应原文，不在本地换算数值。</div>
+        <div class="callout callout-blue"><strong>排查日志：</strong>每次查询都会从日志口打印请求帧和请求校验和；收到响应后打印响应字节数和响应校验字节。例如 <code>RS485 request: ... CS=0x0F</code>。三个指标之间固定等待 1 秒，给电表留出收发切换时间。现场联调已确认：此前 300 ms 间隔会导致响应截断或错位，改为 1 秒后读取稳定，不要随意调小。无响应时不上传；收到 <code>FE</code>、半帧或校验错误时，会原样上传到带 <code>:invalid-response</code> 后缀的测量点，便于监控串口状态。真实电表模式请从 GPIO2 的 TX-only 日志口查看。</div>
+        <div class="table-wrap method-table">
+          <table>
+            <thead><tr><th>方法</th><th>作用</th><th>是否解析功率</th></tr></thead>
+            <tbody>
+              <tr><td><code>readHttpResponse()</code></td><td>读取 HTTP 状态码和响应正文，不解析业务 JSON。</td><td>否</td></tr>
+              <tr><td><code>uploadRawFrame()</code></td><td>统一组装 JSON、添加 Bearer Token、建立 TLS 连接并 POST 原始帧。</td><td>否</td></tr>
+              <tr><td><code>pollMeter()</code></td><td>切换 RS485 收发方向，发送一次查询并取得回复。</td><td>否</td></tr>
+              <tr><td><code>readMeterResponse()</code></td><td>等待并保存 UART 收到的电表原始字节。</td><td>否</td></tr>
+              <tr><td><code>bytesToHex()</code></td><td>把二进制字节转换成 JSON 可携带的十六进制文本。</td><td>否</td></tr>
+              <tr><td><code>sendSimulatedFrame()</code></td><td>跳过电表，直接上传固定测试帧。</td><td>否</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subheading"><h3>5. 编译与烧录</h3><span>Upload</span></div>
+        <ol class="usage-list">
+          <li>先点击 Arduino IDE 左上角的“验证”按钮，确认编译完成。</li>
+          <li>ESP8266-12F 进入烧录模式：<code>GPIO0</code> 接地后重新上电或复位。</li>
+          <li>选择 USB-TTL 对应的串口，点击“上传”；上传完成后断开 <code>GPIO0</code> 与地，再次复位运行。</li>
+          <li>烧录结束后断开 USB-TTL 的 TX/RX。UART0 的 GPIO1/GPIO3 要留给 RS485；调试日志只从 GPIO2 的 <code>Serial1 TX</code> 输出。</li>
+        </ol>
+        <div class="callout callout-red"><strong>接线安全：</strong>电表侧必须使用隔离 RS485 模块。不要把 ESP8266、USB-TTL 或电脑直接连接到市电侧线路；不确定配电箱操作时应由电工完成。</div>
+      </section>
+
+      <section class="api-section" id="response" aria-labelledby="response-title">
+        <div class="section-heading"><span>06</span><h2 id="response-title">响应与错误</h2></div>
+        <div class="response-grid">
+          <div class="response-card response-ok"><span class="status-code">202</span><div><strong>Logged</strong><p>原始帧已写入服务日志。</p></div></div>
+          <div class="response-card response-warn"><span class="status-code">401</span><div><strong>Unauthorized</strong><p>Bearer Token 缺失或不正确。</p></div></div>
+          <div class="response-card response-warn"><span class="status-code">409</span><div><strong>Conflict</strong><p>预留给未来解析/去重服务。</p></div></div>
+          <div class="response-card response-warn"><span class="status-code">422</span><div><strong>Validation</strong><p>字段类型、范围或时间戳不符合约束。</p></div></div>
+        </div>
+        <div class="code-card">
+          <div class="code-card-head"><span>202 Accepted</span><button class="copy-button copy-dark" type="button" data-copy-target="#response-example">复制</button></div>
+          <pre><code id="response-example">{
+  "request_id": "06310875-9c5c-450f-a4a9-3f339aa44379",
+  "status": "logged",
+  "logged_frames": 1,
+  "received_at": "2026-08-16T08:20:30.123456Z"
+}</code></pre>
+        </div>
+      </section>
+
+      <section class="api-section" id="health" aria-labelledby="health-title">
+        <div class="section-heading"><span>07</span><h2 id="health-title">健康检查</h2></div>
+        <div class="health-row"><span class="method-badge method-get">GET</span><code>https://iot.ohmyskills.top/api/v1/health</code><span class="endpoint-note">无需鉴权</span></div>
+        <div class="code-card compact-code"><pre><code>curl https://iot.ohmyskills.top/api/v1/health
+
+{"status":"ok"}</code></pre></div>
+      </section>
+
+      <section class="api-section" id="rules" aria-labelledby="rules-title">
+        <div class="section-heading"><span>08</span><h2 id="rules-title">重试与限制</h2></div>
+        <ul class="rules-list">
+          <li><strong>原文：</strong>服务端不解释 DL/T 645-2007 帧，frame_hex 按上传内容写入日志。</li>
+          <li><strong>可重试：</strong>网络错误、超时和 5xx；重试时保留原 sequence 和原始帧。</li>
+          <li><strong>不可盲重试：</strong>401、409、422 等 4xx。401 需要检查或轮换令牌，409 需要检查数据，422 需要修正请求。</li>
+          <li><strong>批次限制：</strong>每次 1～100 帧，整个 JSON 请求不超过 256 KiB；帧内容保持原始字节顺序。</li>
+        </ul>
+        <div class="callout callout-red"><strong>安全底线：</strong>不要把真实 Token 提交到 Git、写进公开截图或放在网页前端。Arduino 1.6.8 固件当前不验证服务器身份，8899/TLS 1.0 只作为旧设备兼容入口；必须使用每设备独立、权限受限并可随时吊销的 Token。</div>
+      </section>
+
+      <footer class="api-footer">
+        <span>IoT Monitor · API 文档 v1</span>
+        <a href="/">返回方案文档</a>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const status = document.createElement('span');
+      status.className = 'sr-only';
+      status.setAttribute('aria-live', 'polite');
+      document.body.appendChild(status);
+
+      const copyText = (value) => {
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(value);
+        }
+        const area = document.createElement('textarea');
+        area.value = value;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+        return Promise.resolve();
+      };
+
+      document.querySelectorAll('[data-copy-target]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const target = document.querySelector(button.dataset.copyTarget);
+          if (!target) return;
+          const original = button.textContent;
+          copyText(target.textContent).then(() => {
+            button.textContent = '已复制';
+            status.textContent = '代码已复制到剪贴板';
+            window.setTimeout(() => { button.textContent = original; }, 1600);
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

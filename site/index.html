@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="1.5 kW 光伏功率实时监控系统方案：交流电能表、ESP32/ESPHome Wi-Fi 采集节点、可选 BLE 网关和公网 API。">
+  <title>光伏功率实时监控方案 | IoT Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="IoT Monitor 首页">
+        <span class="brand-mark" aria-hidden="true">IM</span>
+        <span>
+          <strong>IoT Monitor</strong>
+          <small>光伏功率监控方案</small>
+        </span>
+      </a>
+      <div class="header-actions">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span class="status-label">方案文档 · v0.8</span>
+        <a class="dashboard-link" href="/dashboard/">打开监控</a>
+        <a class="dashboard-link" href="/doc/">API 文档</a>
+        <a class="download-link" href="/方案.md" download>下载 Markdown</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-shell">
+    <aside class="toc-panel" aria-label="文档目录">
+      <div class="toc-heading">文档目录</div>
+      <nav id="toc"></nav>
+    </aside>
+
+    <main id="main-content" class="document" tabindex="-1">
+      <div class="mobile-toolbar">
+        <button id="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel-mobile">显示目录</button>
+        <a href="/方案.md" download>下载 Markdown</a>
+      </div>
+      <div id="toc-panel-mobile" class="mobile-toc" hidden>
+        <nav id="toc-mobile" aria-label="移动端文档目录"></nav>
+      </div>
+      <article id="content" class="prose" aria-live="polite">
+        <p class="loading">正在加载方案文档…</p>
+      </article>
+      <footer class="document-footer">
+        <span>IoT Monitor · 方案阶段</span>
+        <a href="/方案.md">查看原始 Markdown</a>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const content = document.querySelector('#content');
+      const toc = document.querySelector('#toc');
+      const tocMobile = document.querySelector('#toc-mobile');
+      const toggle = document.querySelector('#toc-toggle');
+      const mobilePanel = document.querySelector('#toc-panel-mobile');
+
+      const escapeHtml = (value) => value.replace(/[&<>'"]/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[char]));
+
+      const inlineMarkdown = (value) => escapeHtml(value)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+      const renderFallback = (markdown) => {
+        const lines = markdown.split(/\r?\n/);
+        const html = [];
+        let inCode = false;
+        let code = [];
+        let list = false;
+        lines.forEach((line) => {
+          if (line.startsWith('```')) {
+            if (inCode) {
+              html.push('<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>');
+              code = [];
+            }
+            inCode = !inCode;
+            return;
+          }
+          if (inCode) { code.push(line); return; }
+          const heading = line.match(/^(#{1,6})\s+(.+)$/);
+          if (heading) {
+            const level = heading[1].length;
+            const text = heading[2].replace(/\s+$/, '');
+            const id = text.toLowerCase().replace(/[^\u4e00-\u9fff\w]+/g, '-').replace(/^-|-$/g, '') || ('section-' + html.length);
+            html.push(`<h${level} id="${id}">${inlineMarkdown(text)}</h${level}>`);
+            return;
+          }
+          const item = line.match(/^[-*]\s+(.+)$/);
+          if (item) {
+            if (!list) { html.push('<ul>'); list = true; }
+            html.push('<li>' + inlineMarkdown(item[1]) + '</li>');
+            return;
+          }
+          if (list) { html.push('</ul>'); list = false; }
+          if (line.trim()) html.push('<p>' + inlineMarkdown(line) + '</p>');
+        });
+        if (list) html.push('</ul>');
+        if (inCode) html.push('<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>');
+        return html.join('\n');
+      };
+
+      const buildToc = () => {
+        const headings = [...content.querySelectorAll('h2, h3')];
+        const items = headings.map((heading) => {
+          const level = heading.tagName === 'H2' ? 2 : 3;
+          return `<a class="toc-level-${level}" href="#${heading.id}">${heading.textContent}</a>`;
+        }).join('');
+        toc.innerHTML = items;
+        tocMobile.innerHTML = items;
+      };
+
+      const closeMobileToc = () => {
+        mobilePanel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = '显示目录';
+      };
+
+      toggle.addEventListener('click', () => {
+        const open = mobilePanel.hidden;
+        mobilePanel.hidden = !open;
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.textContent = open ? '隐藏目录' : '显示目录';
+      });
+
+      fetch('/content.html', { headers: { 'Accept': 'text/html' } })
+        .then((response) => {
+          if (!response.ok) throw new Error('content request failed');
+          return response.text();
+        })
+        .then((html) => {
+          content.innerHTML = html;
+          buildToc();
+          tocMobile.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMobileToc));
+        })
+        .catch(() => fetch('/方案.md'))
+        .then((response) => response && response.text ? response.text() : '')
+        .then((markdown) => {
+          if (markdown && content.querySelector('.loading')) {
+            content.innerHTML = renderFallback(markdown);
+            buildToc();
+          }
+        })
+        .catch(() => {
+          content.innerHTML = '<p class="error">文档暂时无法加载，请稍后刷新，或直接下载 Markdown 文件。</p>';
+        });
+    })();
+  </script>
+</body>
+</html>

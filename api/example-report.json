@@ -1,0 +1,18 @@
+{
+  "site_id": "home-pv",
+  "device_id": "esp32-c3-001",
+  "measurement_point_id": "inverter-ac-output",
+  "records": [
+    {
+      "sequence": 1042,
+      "measured_at": "2026-08-16T04:01:05+08:00",
+      "power_w": 1487.2,
+      "energy_wh": 128430.5,
+      "voltage_v": 229.6,
+      "current_a": 6.62,
+      "power_factor": 0.98,
+      "quality": "ok"
+    }
+  ]
+}
+

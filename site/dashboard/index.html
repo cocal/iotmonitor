@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1829">
+  <meta name="description" content="IoT Monitor 光伏电力监控仪表盘，查看功率、电流、电压和累计电量趋势。">
+  <title>电力监控 | IoT Monitor</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="返回 IoT Monitor 方案首页">
+        <span class="brand-mark" aria-hidden="true">IM</span>
+        <span class="brand-copy">
+          <strong>IoT Monitor</strong>
+          <small>POWER TELEMETRY</small>
+        </span>
+      </a>
+      <div class="topbar-actions">
+        <span class="connection-state"><span class="connection-dot" aria-hidden="true"></span>采集链路正常</span>
+        <a class="back-link" href="./frames.html">原始帧监控</a>
+        <a class="back-link" href="/">查看方案</a>
+      </div>
+    </header>
+
+    <main id="main-content" class="dashboard" tabindex="-1">
+      <section class="dashboard-heading" aria-labelledby="dashboard-title">
+        <div>
+          <p class="eyebrow">HOME PV / INVERTER AC OUTPUT</p>
+          <h1 id="dashboard-title">电力监控</h1>
+          <p class="heading-meta">home-pv · inverter-ac-output <span class="meta-separator">/</span> <span id="last-updated">刚刚更新</span></p>
+        </div>
+        <div class="heading-tools">
+          <span class="mock-badge"><span class="mock-dot" aria-hidden="true"></span>MOCK DATA</span>
+          <button id="refresh-button" class="refresh-button" type="button">刷新数据</button>
+        </div>
+      </section>
+
+      <section class="metric-grid" aria-label="当前关键指标">
+        <article class="metric-card metric-card-power">
+          <div class="metric-topline"><span>当前功率</span><span class="metric-icon" aria-hidden="true">W</span></div>
+          <div class="metric-value"><strong id="current-power">1,487</strong><span>W</span></div>
+          <div class="metric-foot"><span class="trend-up">↑ 3.8%</span><span>较上一时段</span></div>
+        </article>
+        <article class="metric-card metric-card-energy">
+          <div class="metric-topline"><span>今日累计电量</span><span class="metric-icon" aria-hidden="true">kWh</span></div>
+          <div class="metric-value"><strong id="today-energy">12.84</strong><span>kWh</span></div>
+          <div class="metric-foot"><span class="trend-up">↑ 8.2%</span><span>较昨日同期</span></div>
+        </article>
+        <article class="metric-card metric-card-voltage">
+          <div class="metric-topline"><span>交流电压</span><span class="metric-icon" aria-hidden="true">V</span></div>
+          <div class="metric-value"><strong id="current-voltage">229.6</strong><span>V</span></div>
+          <div class="metric-foot"><span class="metric-neutral">稳定</span><span>额定 220 V</span></div>
+        </article>
+        <article class="metric-card metric-card-current">
+          <div class="metric-topline"><span>交流电流</span><span class="metric-icon" aria-hidden="true">A</span></div>
+          <div class="metric-value"><strong id="current-current">6.62</strong><span>A</span></div>
+          <div class="metric-foot"><span class="metric-neutral">正常</span><span>单相输出</span></div>
+        </article>
+      </section>
+
+      <section class="control-row" aria-label="趋势图控制">
+        <div class="range-control" role="group" aria-label="选择时间范围">
+          <button class="range-button is-active" type="button" data-range="24h" aria-pressed="true">24 小时</button>
+          <button class="range-button" type="button" data-range="7d" aria-pressed="false">7 天</button>
+          <button class="range-button" type="button" data-range="30d" aria-pressed="false">30 天</button>
+        </div>
+        <span class="data-note"><span class="live-pulse" aria-hidden="true"></span>每 5 秒刷新 · 最近 30 天</span>
+      </section>
+
+      <section class="chart-grid" aria-label="电力趋势图">
+        <article class="chart-panel chart-panel-primary">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">ACTIVE POWER</p>
+              <h2>功率趋势</h2>
+            </div>
+            <div class="panel-current"><strong id="power-panel-value">1,487</strong><span>W</span></div>
+          </div>
+          <div class="chart-wrap" id="power-chart" role="img" aria-label="功率趋势图"></div>
+          <div class="chart-caption"><span>输出功率</span><span>单位：W</span></div>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">CURRENT</p>
+              <h2>电流趋势</h2>
+            </div>
+            <div class="panel-current"><strong id="current-panel-value">6.62</strong><span>A</span></div>
+          </div>
+          <div class="chart-wrap chart-wrap-small" id="current-chart" role="img" aria-label="电流趋势图"></div>
+          <div class="chart-caption"><span>交流电流</span><span>单位：A</span></div>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">VOLTAGE</p>
+              <h2>电压趋势</h2>
+            </div>
+            <div class="panel-current"><strong id="voltage-panel-value">229.6</strong><span>V</span></div>
+          </div>
+          <div class="chart-wrap chart-wrap-small" id="voltage-chart" role="img" aria-label="电压趋势图"></div>
+          <div class="chart-caption"><span>交流电压</span><span>单位：V</span></div>
+        </article>
+
+        <article class="chart-panel chart-panel-energy">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">ENERGY TOTAL</p>
+              <h2>累计电量</h2>
+            </div>
+            <div class="panel-current"><strong id="energy-panel-value">128.43</strong><span>kWh</span></div>
+          </div>
+          <div class="chart-wrap chart-wrap-small" id="energy-chart" role="img" aria-label="累计电量趋势图"></div>
+          <div class="chart-caption"><span>累计读数</span><span>单位：kWh</span></div>
+        </article>
+      </section>
+
+      <table class="sr-only">
+        <caption>最近六个电力采样点</caption>
+        <thead><tr><th scope="col">时间</th><th scope="col">功率 W</th><th scope="col">电流 A</th><th scope="col">电压 V</th><th scope="col">累计电量 kWh</th></tr></thead>
+        <tbody id="accessible-data"></tbody>
+      </table>
+
+      <footer class="dashboard-footer">
+        <span>设备：ESP32-C3-001</span>
+        <span>数据质量：<strong>OK</strong></span>
+        <span>序列号：1042</span>
+      </footer>
+    </main>
+  </div>
+  <noscript><p class="no-script">此仪表盘需要启用 JavaScript 才能显示趋势图。</p></noscript>
+  <script src="./app.js"></script>
+</body>
+</html>
