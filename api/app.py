@@ -30,7 +30,7 @@ MAX_REQUEST_BYTES = 256 * 1024
 MAX_RECORDS_PER_BATCH = 300
 MAX_RAW_FRAMES_PER_BATCH = 100
 MAX_RAW_FRAME_HEX_CHARS = 4096
-MAX_RAW_FRAME_QUERY_LIMIT = 200
+MAX_RAW_FRAME_QUERY_LIMIT = 100
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 HEX_FRAME_PATTERN = re.compile(r"^[0-9A-Fa-f]+$")
 QUALITY_VALUES = {"ok", "estimated", "invalid", "offline_gap"}
@@ -40,6 +40,11 @@ RAW_METRIC_CONFIG = {
     "voltage-a": {"name": "A 相电压", "unit": "V", "scale": 0.1},
     "current-a": {"name": "A 相电流", "unit": "A", "scale": 0.001},
     "instantaneous-active-power": {"name": "瞬时有功功率", "unit": "W", "scale": 0.1},
+}
+RAW_METRIC_DI = {
+    (0x00, 0x01, 0x01, 0x02): "voltage-a",
+    (0x00, 0x01, 0x02, 0x02): "current-a",
+    (0x00, 0x00, 0x03, 0x02): "instantaneous-active-power",
 }
 
 
@@ -185,11 +190,14 @@ class RawFrameStore:
     """Archives raw frames asynchronously and stores queryable copies in SQLite."""
 
     def __init__(self, database_path: str, archive_path: Optional[str], *, enable_database: bool = True,
-                 monitor_database_url: Optional[str] = None) -> None:
+                 monitor_database_url: Optional[str] = None, monitor_api_url: Optional[str] = None,
+                 monitor_api_key: Optional[str] = None) -> None:
         self.database_path = database_path
         self.archive_path = archive_path or str(Path(database_path).with_name("dlt645-frames.jsonl"))
         self.enable_database = enable_database
         self.monitor_database_url = monitor_database_url
+        self.monitor_api_url = monitor_api_url
+        self.monitor_api_key = monitor_api_key
         self._archive_queue: "queue.Queue[Optional[str]]" = queue.Queue()
         self._archive_thread = threading.Thread(target=self._archive_worker, name="dlt645-archive", daemon=True)
         if enable_database and database_path != ":memory:":
@@ -366,6 +374,24 @@ class RawFrameStore:
 
     def list_recent(self, *, limit: int, site_id: Optional[str] = None, device_id: Optional[str] = None,
                     direction: Optional[str] = None) -> Dict[str, Any]:
+        if self.monitor_api_url:
+            query = [("limit", str(limit))]
+            if site_id:
+                query.append(("site_id", site_id))
+            if device_id:
+                query.append(("device_id", device_id))
+            if direction:
+                query.append(("direction", direction))
+            from urllib.parse import urlencode
+            request = Request(self.monitor_api_url + "?" + urlencode(query), headers={"X-Monitor-Center-Key": self.monitor_api_key or ""})
+            try:
+                with urlopen(request, timeout=8) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("Monitor Center response is invalid")
+                return payload
+            except (HTTPError, URLError, OSError, ValueError, json.JSONDecodeError) as error:
+                raise RuntimeError("Monitor Center query failed") from error
         conditions: List[str] = []
         parameters: List[Any] = []
         for column, value in (("site_id", site_id), ("device_id", device_id), ("direction", direction)):
@@ -425,12 +451,20 @@ class RawFrameStore:
             frames = list(reversed(frames[-limit:]))
             total = len(frames)
         metrics: Dict[str, List[Dict[str, Any]]] = {name: [] for name in RAW_METRIC_CONFIG}
+        collection_buckets: Dict[str, Dict[str, Any]] = {}
         for frame in reversed(frames):
             decoded = decode_raw_metric(frame)
             if decoded is not None:
+                frame["metric_key"] = decoded["metric"]
+                frame["metric_value"] = decoded["value"]
+                frame["metric_unit"] = decoded["unit"]
                 metrics[decoded["metric"]].append(
                     {"captured_at": frame["captured_at"], "sequence": frame["sequence"], "value": decoded["value"]}
                 )
+            timestamp = str(frame.get("captured_at", ""))
+            bucket = timestamp[:19] + "Z" if len(timestamp) >= 19 else timestamp
+            item = collection_buckets.setdefault(bucket, {"captured_at": bucket, "success": 0, "failure": 0})
+            item["success" if decoded is not None else "failure"] += 1
         return {
             "frames": frames,
             "count": len(frames),
@@ -439,6 +473,7 @@ class RawFrameStore:
                 {"key": key, "name": config["name"], "unit": config["unit"], "points": metrics[key]}
                 for key, config in RAW_METRIC_CONFIG.items()
             ],
+            "collection": {"interval": "1s", "points": list(collection_buckets.values())},
         }
 
     def close(self) -> None:
@@ -626,8 +661,6 @@ def decode_raw_metric(frame: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     point = frame.get("measurement_point_id", "")
     suffix = point.rsplit(":", 1)[-1]
     config = RAW_METRIC_CONFIG.get(suffix)
-    if config is None:
-        return None
     try:
         encoded = bytes.fromhex(str(frame["frame_hex"]).replace(" ", "").replace(":", ""))
         data_length = encoded[9]
@@ -635,6 +668,11 @@ def decode_raw_metric(frame: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if len(payload) < 5:
             return None
         decoded = bytes((value - 0x33) & 0xFF for value in payload)
+        if config is None:
+            suffix = RAW_METRIC_DI.get(tuple(decoded[:4]), "")
+            config = RAW_METRIC_CONFIG.get(suffix)
+        if config is None:
+            return None
         # DI is transmitted in line order; the remaining BCD bytes are little-endian.
         data = decoded[4:]
         digits = ""
@@ -1000,11 +1038,15 @@ def create_server(
     store = None if log_only else PowerReportStore(database_path)
     archive_path = os.environ.get("POWER_MONITOR_RAW_ARCHIVE")
     monitor_database_url = os.environ.get("POWER_MONITOR_CENTER_DATABASE_URL")
+    monitor_api_url = os.environ.get("POWER_MONITOR_CENTER_API_URL")
+    monitor_api_key = os.environ.get("POWER_MONITOR_CENTER_API_KEY")
     raw_store = RawFrameStore(
         database_path,
         archive_path,
         enable_database=not log_only or bool(monitor_database_url),
         monitor_database_url=monitor_database_url,
+        monitor_api_url=monitor_api_url,
+        monitor_api_key=monitor_api_key,
     )
     return PowerMonitorServer(
         (host, port), store, raw_store, token, os.environ.get("POWER_MONITOR_RAW_FORWARD_URL")

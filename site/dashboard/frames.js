@@ -63,12 +63,41 @@
     });
   };
 
-  const render = (frames, total, metrics = []) => {
+  const renderCollectionChart = (target, collection) => {
+    const points = collection && Array.isArray(collection.points) ? collection.points : [];
+    if (!points.length) {
+      target.classList.add('is-empty');
+      target.innerHTML = '<span>等待采集结果</span>';
+      return;
+    }
+    target.classList.remove('is-empty');
+    const values = points;
+    const width = 760;
+    const height = 270;
+    const margin = { top: 16, right: 14, bottom: 28, left: 50 };
+    const max = Math.max(1, ...values.flatMap((point) => [point.success, point.failure]));
+    const x = (index) => margin.left + index / Math.max(values.length - 1, 1) * (width - margin.left - margin.right);
+    const y = (value) => margin.top + (1 - value / max) * (height - margin.top - margin.bottom);
+    const pathFor = (key) => values.map((point, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(2)} ${y(point[key]).toFixed(2)}`).join(' ');
+    const grid = Array.from({ length: 5 }, (_, index) => {
+      const value = max * (4 - index) / 4;
+      const position = y(value);
+      return `<line x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"></line><text x="${margin.left - 8}" y="${position + 3}" text-anchor="end">${Math.round(value)}</text>`;
+    }).join('');
+    const labels = values.map((point, index) => {
+      if (index !== 0 && index !== values.length - 1 && index % Math.max(1, Math.ceil(values.length / 5)) !== 0) return '';
+      return `<text x="${x(index)}" y="${height - 7}" text-anchor="middle">${escapeHtml(formatTime(point.captured_at))}</text>`;
+    }).join('');
+    target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><g class="chart-grid-lines">${grid}</g>${labels}<path class="chart-line" stroke="#13845c" d="${pathFor('success')}"></path><path class="chart-line" stroke="#c2413b" d="${pathFor('failure')}"></path></svg>`;
+  };
+
+  const render = (frames, total, metrics = [], collection = null) => {
     const rows = byId('frame-rows');
     const latest = frames[0];
     byId('metric-total').textContent = total.toLocaleString('zh-CN');
     byId('metric-latest-date').textContent = latest ? `${formatTime(latest.received_at)} 最近接收` : '等待数据';
     renderMetrics(metrics);
+    renderCollectionChart(byId('chart-collection'), collection);
     byId('row-count').textContent = `${frames.length} 条`;
     byId('empty-state').hidden = frames.length > 0;
     rows.innerHTML = frames.map((frame) => {
@@ -89,14 +118,14 @@
   };
 
   const load = async () => {
-    const params = new URLSearchParams({ limit: '200' });
+    const params = new URLSearchParams({ limit: '100' });
     if (state.device) params.set('device_id', state.device);
     if (state.direction) params.set('direction', state.direction);
     try {
       const response = await fetch(`/api/v1/dlt645/frame?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
-      render(result.frames || [], result.total || 0, result.metrics || []);
+      render(result.frames || [], result.total || 0, result.metrics || [], result.collection || null);
       byId('connection-label').textContent = '实时连接';
       byId('sync-label').textContent = '归档正常';
       byId('toolbar-status').textContent = `每 5 秒自动刷新 · 共 ${result.total || 0} 条`;

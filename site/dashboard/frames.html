@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d1829">
   <title>原始帧监控 | IoT Monitor</title>
-  <link rel="stylesheet" href="./frames.css?v=20260830">
+  <link rel="stylesheet" href="./frames.css?v=20260830-6">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -47,6 +47,7 @@
         <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">ACTIVE POWER</p><h2>瞬时有功功率趋势</h2></div><span class="chart-current"><strong id="chart-power-value">--</strong> W</span></div><div id="chart-power" class="trend-chart" role="img" aria-label="瞬时有功功率趋势图"></div></article>
         <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">VOLTAGE</p><h2>A 相电压趋势</h2></div><span class="chart-current"><strong id="chart-voltage-value">--</strong> V</span></div><div id="chart-voltage" class="trend-chart trend-chart-small" role="img" aria-label="A 相电压趋势图"></div></article>
         <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">CURRENT</p><h2>A 相电流趋势</h2></div><span class="chart-current"><strong id="chart-current-value">--</strong> A</span></div><div id="chart-current" class="trend-chart trend-chart-small" role="img" aria-label="A 相电流趋势图"></div></article>
+        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">COLLECTION QUALITY</p><h2>采集成功 / 失败趋势</h2><p class="panel-note">每秒计数 · 最近 100 条帧</p></div><div class="chart-legend"><span><i class="legend-success" aria-hidden="true"></i>成功</span><span><i class="legend-failure" aria-hidden="true"></i>失败</span></div></div><div id="chart-collection" class="trend-chart" role="img" aria-label="每秒采集成功和失败数量趋势图"></div></article>
       </section>
 
       <section class="toolbar" aria-label="原始帧筛选">
@@ -83,6 +84,6 @@
     <dl class="detail-grid" id="frame-detail"></dl>
     <div class="hex-detail"><span>FRAME_HEX</span><code id="dialog-hex"></code></div>
   </dialog>
-  <script src="./frames.js"></script>
+  <script src="./frames.js?v=20260830-7"></script>
 </body>
 </html>

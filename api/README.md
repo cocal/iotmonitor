@@ -20,8 +20,12 @@ python3 app.py
 | POWER_MONITOR_TOKEN | 无，必填 | 设备使用的 Bearer Token |
 | POWER_MONITOR_HOST | 127.0.0.1 | 监听地址 |
 | POWER_MONITOR_PORT | 8090 | 监听端口 |
-| POWER_MONITOR_DATABASE | data/power-monitor.db | 兼容旧解析接口时使用的 SQLite 路径 |
+| POWER_MONITOR_DATABASE | data/power-monitor.db | 旧解析接口兼容用 SQLite 路径；生产趋势数据应同步到 Monitor Center |
 | POWER_MONITOR_RAW_ARCHIVE | 与数据库同目录的 dlt645-frames.jsonl | 原始帧本地 JSONL 归档路径 |
+| POWER_MONITOR_CENTER_DATABASE_URL | 无 | Monitor Center PostgreSQL 连接串；设置后使用 `iot_dlt645_frames` 独立表 |
+| POWER_MONITOR_CENTER_API_URL | 无 | 页面/API 查询代理地址，例如 `http://10.77.0.1:8080/api/dlt645/frames` |
+| POWER_MONITOR_CENTER_API_KEY | 无 | 查询代理调用中心端点的共享密钥 |
+| POWER_MONITOR_RAW_FORWARD_URL | 无 | 可选的上游原始帧 POST 地址，用于跨服务器同步 |
 | POWER_MONITOR_LOG_ONLY | false | true 时只启用原始帧日志入口，不创建或写入 SQLite |
 
 ## 部署边界
@@ -78,9 +82,11 @@ site_id、device_id、measurement_point_id、protocol 和 frames 是必填字段
 }
 ~~~
 
-原始帧入口会先将每条记录异步追加到本地 JSONL 归档，再同步写入 monitor center SQLite 的 `raw_frames` 独立表；不解析、不去重，设备断网重试时可以重复发送相同 sequence。后续解析服务可以根据 request_id、设备身份和 sequence 建立原始帧与解析结果的关联。
+生产链路为：192 接收并解析原始帧，先异步追加本地 JSONL，再由 `monitor-center-agent` 从 `power-monitor-api.service` 的 journald 读取结构化日志，经 WireGuard/NATS JetStream 流式送到 Monitor Center；中心端归档并同步写入 PostgreSQL 独立表 `iot_dlt645_frames`。104 只通过 `POWER_MONITOR_CENTER_API_URL` 查询中心数据并展示趋势，不直接写中心数据库。
 
-监控页面使用 `GET /api/v1/dlt645/frame?limit=200&device_id=...&direction=rx` 读取最近记录。该查询接口返回 `frames`、当前结果 `count` 和筛选前总数 `total`，不需要设备 Bearer Token。
+192 上的 agent 环境必须设置 `MONITOR_CENTER_JOURNAL_UNIT=power-monitor-api.service`。中心端也兼容旧 agent 发送的普通 `raw` 日志，会从 `MESSAGE` 中兜底识别 `dlt645_raw_frame`。
+
+监控页面使用 `GET /api/v1/dlt645/frame?limit=100&device_id=...&direction=rx` 读取最近 100 条记录。该查询接口最多返回最近 100 条，返回 `frames`、当前结果 `count` 和筛选前总数 `total`，不需要设备 Bearer Token。
 
 调用示例：
 

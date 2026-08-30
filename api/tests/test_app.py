@@ -13,7 +13,7 @@ from pathlib import Path
 API_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(API_ROOT))
 
-from app import API_PATH, HEALTH_PATH, RAW_FRAME_PATH, create_server  # noqa: E402
+from app import API_PATH, HEALTH_PATH, RAW_FRAME_PATH, create_server, decode_raw_metric  # noqa: E402
 
 
 class PowerMonitorApiTest(unittest.TestCase):
@@ -215,6 +215,17 @@ class PowerMonitorApiTest(unittest.TestCase):
 
         self.assertEqual(422, status)
         self.assertEqual("validation_error", body["error"]["code"])
+
+    def test_decodes_configured_dlt645_metric_from_data_identifier(self) -> None:
+        self.assertEqual(
+            {"metric": "instantaneous-active-power", "name": "瞬时有功功率", "unit": "W", "value": 5000.0},
+            decode_raw_metric(
+                {
+                    "measurement_point_id": "inverter-ac-output",
+                    "frame_hex": "6800000000000068910733333635333338D716",
+                }
+            ),
+        )
 
 
 if __name__ == "__main__":
