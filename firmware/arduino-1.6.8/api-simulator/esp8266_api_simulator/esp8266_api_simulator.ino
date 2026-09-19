@@ -22,9 +22,10 @@ const char DEVICE_TOKEN[] = "REPLACE_DEVICE_TOKEN";
 
 // ---------- Fixed API test data ----------
 
-const IPAddress API_SERVER_IP(192, 144, 142, 237);
-const char API_HOST_HEADER[] = "192.144.142.237:8899";
-const uint16_t API_PORT = 8899;
+// Replace these values in a private build. Do not commit the real endpoint.
+const IPAddress API_SERVER_IP(0, 0, 0, 0);
+const char API_HOST_HEADER[] = "REPLACE_API_HOST:REPLACE_API_PORT";
+const uint16_t API_PORT = 0;
 const char API_PATH[] = "/api/v1/dlt645/frame";
 
 const char SITE_ID[] = "home-pv";
@@ -51,8 +52,9 @@ bool containsPlaceholder(const char *value) {
 bool configurationIsReady() {
   if (containsPlaceholder(WIFI_SSID) ||
       containsPlaceholder(WIFI_PASSWORD) ||
-      containsPlaceholder(DEVICE_TOKEN)) {
-    Serial.println("[ERROR] Replace WIFI_SSID, WIFI_PASSWORD and DEVICE_TOKEN");
+      containsPlaceholder(DEVICE_TOKEN) ||
+      containsPlaceholder(API_HOST_HEADER) || API_PORT == 0) {
+    Serial.println("[ERROR] Replace Wi-Fi, token and private API endpoint settings");
     return false;
   }
   return true;

@@ -218,7 +218,7 @@ void loop() {
 
       <section class="api-section" id="1.6.8" aria-labelledby="arduino-168-title">
         <div class="section-heading"><span>05</span><h2 id="arduino-168-title">Arduino IDE 1.6.8 完整程序</h2></div>
-        <p>这是给旧版 Windows 电脑和 ESP8266-12F 使用的兼容程序。程序通过 RS485 查询 DDSU666，将电表回复原样转换为 <code>frame_hex</code> 后上传；功率值仍由服务器解析。该版本直连 <code>192.144.142.237:8899</code>，已经使用 Arduino IDE 1.6.8 与 ESP8266 Core 2.3.0 本地编译通过。</p>
+        <p>这是给旧版 Windows 电脑和 ESP8266-12F 使用的兼容程序。程序通过 RS485 查询 DDSU666，将电表回复原样转换为 <code>frame_hex</code> 后上传；功率值仍由服务器解析。该版本直连私有配置的兼容入口，已经使用 Arduino IDE 1.6.8 与 ESP8266 Core 2.3.0 本地编译通过。</p>
 
         <div class="artifact-bar">
           <div>
@@ -267,7 +267,7 @@ void loop() {
 const char WIFI_PASSWORD[] = "你的 Wi-Fi 密码";
 const char DEVICE_TOKEN[] = "服务器分配的设备 Token";</code></pre>
         </div>
-        <div class="callout callout-blue"><strong>旧版固件入口：</strong><code>POST https://192.144.142.237:8899/api/v1/dlt645/frame</code>。程序已固定该地址和端口，不经过域名、Cloudflare 或 443；烧录前只需填写 Wi-Fi 与这台 192 服务器分配的 Token。</div>
+        <div class="callout callout-blue"><strong>旧版固件入口：</strong>使用私有部署配置中的兼容 API 地址和端口。程序不经过域名、Cloudflare 或标准 HTTPS 入口；烧录前填写 Wi-Fi、设备 Token 和私有 API endpoint。</div>
         <div class="callout callout-red"><strong>TLS 兼容方式：</strong>ESP8266 Core 2.3.0 的 axTLS 仅连接服务器专用的 TLS 1.0 兼容端口，并且不调用 <code>verify()</code>。传输内容仍加密，但设备不验证服务器身份；中间人可能冒充服务器并取得 Token。此入口只给旧设备使用，每台设备应使用独立、可吊销的 Token。</div>
 
         <div class="subheading"><h3>3. 先发送模拟报文</h3><span>API Test</span></div>
@@ -372,7 +372,7 @@ const bool METER_ADDRESS_IS_CONFIGURED = true;
           <li><strong>不可盲重试：</strong>401、409、422 等 4xx。401 需要检查或轮换令牌，409 需要检查数据，422 需要修正请求。</li>
           <li><strong>批次限制：</strong>每次 1～100 帧，整个 JSON 请求不超过 256 KiB；帧内容保持原始字节顺序。</li>
         </ul>
-        <div class="callout callout-red"><strong>安全底线：</strong>不要把真实 Token 提交到 Git、写进公开截图或放在网页前端。Arduino 1.6.8 固件当前不验证服务器身份，8899/TLS 1.0 只作为旧设备兼容入口；必须使用每设备独立、权限受限并可随时吊销的 Token。</div>
+        <div class="callout callout-red"><strong>安全底线：</strong>不要把真实 Token、服务器地址或兼容端口提交到 Git、写进公开截图或放在网页前端。Arduino 1.6.8 固件当前不验证服务器身份，只作为旧设备兼容入口；必须使用每设备独立、权限受限并可随时吊销的 Token。</div>
       </section>
 
       <footer class="api-footer">

@@ -4,3 +4,8 @@ api/data/*.db
 api/data/*.db-*
 *.log
 .DS_Store
+*.env
+*.key
+*.pem
+*.crt
+secrets/

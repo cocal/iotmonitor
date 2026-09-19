@@ -42,8 +42,8 @@ max_wal_senders = 4
 在 `pg_hba.conf` 中只允许 WireGuard 对端地址使用复制用户：
 
 ```conf
-host replication monitor_repl 10.77.0.2/32 scram-sha-256
-host iotmonitor monitor_repl 10.77.0.2/32 scram-sha-256
+host replication monitor_repl MONITOR_CENTER_WG_IP/32 scram-sha-256
+host iotmonitor monitor_repl MONITOR_CENTER_WG_IP/32 scram-sha-256
 ```
 
 创建复制用户和发布：
@@ -170,7 +170,7 @@ FROM pg_subscription_rel;
 
 ### 现象
 
-8899 入口持续返回 `202`，192 本地 PostgreSQL 仍有 9 月 14 日数据，但 `iot.ohmyskills.top/dashboard/frames.html` 只能查到 9 月 13 日 `17:59:27`（北京时间）。因此入口服务和设备上报链路正常，问题位于 192 到 Monitor Center 的复制链路。
+兼容入口持续返回 `202`，192 本地 PostgreSQL 仍有 9 月 14 日数据，但 `iot.ohmyskills.top/dashboard/frames.html` 只能查到 9 月 13 日 `17:59:27`（北京时间）。因此入口服务和设备上报链路正常，问题位于 192 到 Monitor Center 的复制链路。
 
 ### 根因
 

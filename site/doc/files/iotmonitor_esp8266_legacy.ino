@@ -37,9 +37,10 @@ const bool SEND_SIMULATED_FRAME = false;
 const char SIMULATED_FRAME_HEX[] =
     "68200828090000689107333435353333332B16";
 
-const IPAddress API_SERVER_IP(192, 144, 142, 237);
-const char API_HOST_HEADER[] = "192.144.142.237:8899";
-const uint16_t API_PORT = 8899;
+// Replace these values in a private build. Do not commit the real endpoint.
+const IPAddress API_SERVER_IP(0, 0, 0, 0);
+const char API_HOST_HEADER[] = "REPLACE_API_HOST:REPLACE_API_PORT";
+const uint16_t API_PORT = 0;
 const char API_PATH[] = "/api/v1/dlt645/frame";
 
 /*
@@ -132,8 +133,9 @@ void logLine(const String &message) {
 bool configurationIsReady() {
   if (containsPlaceholder(WIFI_SSID) ||
       containsPlaceholder(WIFI_PASSWORD) ||
-      containsPlaceholder(DEVICE_TOKEN)) {
-    logLine("CONFIG ERROR: replace Wi-Fi and token");
+      containsPlaceholder(DEVICE_TOKEN) ||
+      containsPlaceholder(API_HOST_HEADER) || API_PORT == 0) {
+    logLine("CONFIG ERROR: replace Wi-Fi, token and private API endpoint");
     return false;
   }
   if (!SEND_SIMULATED_FRAME && !METER_ADDRESS_IS_CONFIGURED) {

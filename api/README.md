@@ -13,7 +13,7 @@ export POWER_MONITOR_LOG_ONLY=true
 python3 app.py
 ~~~
 
-默认监听 127.0.0.1:8090。可使用以下环境变量修改：
+默认监听 127.0.0.1:MONITOR_API_PORT。可使用以下环境变量修改：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ python3 app.py
 | POWER_MONITOR_DATABASE | data/power-monitor.db | 旧解析接口兼容用 SQLite 路径；生产趋势数据应同步到 Monitor Center |
 | POWER_MONITOR_RAW_ARCHIVE | 与数据库同目录的 dlt645-frames.jsonl | 原始帧本地 JSONL 归档路径 |
 | POWER_MONITOR_CENTER_DATABASE_URL | 无 | Monitor Center PostgreSQL 连接串；设置后使用 `iot_dlt645_frames` 独立表 |
-| POWER_MONITOR_CENTER_API_URL | 无 | 页面/API 查询代理地址，例如 `http://10.77.0.1:8080/api/dlt645/frames` |
+| POWER_MONITOR_CENTER_API_URL | 无 | 页面/API 查询代理地址，例如 `http://MONITOR_CENTER_API_HOST:MONITOR_CENTER_API_PORT/api/dlt645/frames` |
 | POWER_MONITOR_CENTER_API_KEY | 无 | 查询代理调用中心端点的共享密钥 |
 | POWER_MONITOR_RAW_FORWARD_URL | 无 | 可选的上游原始帧 POST 地址，用于跨服务器同步 |
 | POWER_MONITOR_LOG_ONLY | false | true 时只启用原始帧日志入口，不创建或写入 SQLite |
@@ -33,11 +33,11 @@ python3 app.py
 外部有标准入口和旧设备兼容入口：
 
 - 域名入口： https://iot.ohmyskills.top/api/v1/dlt645/frame，由域名证书保护，ESP8266 正式运行应校验证书。
-- Arduino 1.6.8 / ESP8266 Core 2.3.0 兼容入口： https://192.144.142.237:8899/api/v1/dlt645/frame，使用自签证书、TLS 1.0 和 AES128-SHA，仅供旧版 axTLS 客户端。
+- Arduino 1.6.8 / ESP8266 Core 2.3.0 兼容入口： https://LEGACY_API_HOST:LEGACY_API_PORT/api/v1/dlt645/frame，使用自签证书、TLS 1.0 和 AES128-SHA，仅供旧版 axTLS 客户端。
 - 两台服务器运行同一个 app.py 和同一个 API 路径，分别把原始帧归档到本地 JSONL，并同步到各自配置的 SQLite 数据库；systemd 日志仍保留接收审计事件。
-- Python 服务只绑定服务器本机 127.0.0.1:8090，外部请求由 Nginx 443 或 8899 兼容入口转发。
+- Python 服务只绑定服务器本机 127.0.0.1:MONITOR_API_PORT，外部请求由 Nginx 443 或 旧版兼容入口转发。
 
-8899 入口不验证服务器身份，存在中间人窃取 Token 的风险。它只解决旧版 axTLS 的连接兼容问题，现代客户端仍必须使用域名 443 和受信任证书。
+旧版兼容入口不验证服务器身份，存在中间人窃取 Token 的风险。它只解决旧版 axTLS 的连接兼容问题，现代客户端仍必须使用域名 443 和受信任证书。
 
 ## 原始帧上报接口
 
@@ -102,7 +102,7 @@ Arduino 1.6.8 兼容入口联调：
 ~~~bash
 curl --fail-with-body --insecure --tlsv1.0 --tls-max 1.0 \
   --ciphers 'AES128-SHA:@SECLEVEL=0' \
-  https://192.144.142.237:8899/api/v1/dlt645/frame \
+  https://LEGACY_API_HOST:LEGACY_API_PORT/api/v1/dlt645/frame \
   -H "Authorization: Bearer $POWER_MONITOR_TOKEN" \
   -H "Content-Type: application/json" \
   --data-binary @example-raw-frame.json

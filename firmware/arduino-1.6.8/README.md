@@ -50,7 +50,7 @@ TX 线不要连接。`SEND_SIMULATED_FRAME=true` 只会跳过 RS485 查询并发
 ## 兼容性边界
 
 ESP8266 Core 2.3.0 没有 `setInsecure()` 方法。本程序直接使用 `WiFiClientSecure`
-连接 `192.144.142.237:8899` 的 TLS 1.0 兼容入口，但不调用 `verify()`；效果等同于
+连接私有配置中的 TLS 1.0 兼容入口，但不调用 `verify()`；效果等同于
 新版本的 `setInsecure()`：传输仍加密，但设备不验证服务器身份，因此证书续期后
 不需要重新烧录。该地址绕过域名和 Cloudflare，仅供这套旧固件使用。
 
