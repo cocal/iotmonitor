@@ -176,6 +176,46 @@ class PowerMonitorApiTest(unittest.TestCase):
             ).fetchone()
         self.assertEqual(("esp8266-12f-001", "rx", "68010203040568910433333333333316"), row)
 
+        archive_path = Path(self.temporary_directory.name) / "dlt645-frames.jsonl"
+        archived = json.loads(archive_path.read_text(encoding="utf-8").strip())
+        self.assertEqual(1, archived["archive_version"])
+        self.assertEqual(body["request_id"], archived["request_id"])
+        self.assertEqual("68010203040568910433333333333316", archived["frame_hex"])
+
+    def test_raw_frame_is_durably_archived_before_database_failure(self) -> None:
+        original_ingest = self.server.raw_store.ingest
+
+        def fail_ingest(*args: object, **kwargs: object) -> int:
+            raise sqlite3.OperationalError("database unavailable")
+
+        self.server.raw_store.ingest = fail_ingest
+        try:
+            status, body = self.request("POST", RAW_FRAME_PATH, self.valid_raw_payload(), token=self.token)
+        finally:
+            self.server.raw_store.ingest = original_ingest
+
+        self.assertEqual(503, status)
+        self.assertEqual("storage_unavailable", body["error"]["code"])
+        archive_path = Path(self.temporary_directory.name) / "dlt645-frames.jsonl"
+        archived = json.loads(archive_path.read_text(encoding="utf-8").strip())
+        self.assertEqual("esp8266-12f-001", archived["device_id"])
+
+    def test_replaying_same_raw_frame_does_not_increment_stats_twice(self) -> None:
+        payload = self.valid_raw_payload()
+        request_id = "beec51f8-5f39-426a-b9b8-57aa6c16a712"
+        received_at = "2026-08-15T20:01:06.000000Z"
+
+        first = self.server.raw_store.ingest(request_id, received_at, payload)
+        second = self.server.raw_store.ingest(request_id, received_at, payload)
+
+        self.assertEqual(1, first)
+        self.assertEqual(0, second)
+        with sqlite3.connect(self.database_path) as connection:
+            frame_count = connection.execute("SELECT COUNT(*) FROM raw_frames").fetchone()[0]
+            stats_count = connection.execute("SELECT total_frames FROM iot_frame_stats").fetchone()[0]
+        self.assertEqual(1, frame_count)
+        self.assertEqual(1, stats_count)
+
     def test_lists_recent_raw_frames_without_authentication(self) -> None:
         self.request("POST", RAW_FRAME_PATH, self.valid_raw_payload(), token=self.token)
 

@@ -21,7 +21,7 @@ python3 app.py
 | POWER_MONITOR_HOST | 127.0.0.1 | 监听地址 |
 | POWER_MONITOR_PORT | 8090 | 监听端口 |
 | POWER_MONITOR_DATABASE | data/power-monitor.db | 旧解析接口兼容用 SQLite 路径；生产趋势数据应同步到 Monitor Center |
-| POWER_MONITOR_RAW_ARCHIVE | 与数据库同目录的 dlt645-frames.jsonl | 原始帧本地 JSONL 归档路径 |
+| POWER_MONITOR_RAW_ARCHIVE | 与数据库同目录的 dlt645-frames.jsonl | 原始帧本地持久化 JSONL 路径；收到报文后先同步刷盘再写数据库 |
 | POWER_MONITOR_DATABASE_URL | 无 | 192 本机 PostgreSQL 连接串；设置后接收服务写入本机 `iot_dlt645_frames` |
 | POWER_MONITOR_CENTER_API_URL | 无 | 页面/API 查询代理地址，例如 `http://MONITOR_CENTER_API_HOST:MONITOR_CENTER_API_PORT/api/dlt645/frames` |
 | POWER_MONITOR_CENTER_API_KEY | 无 | 查询代理调用中心端点的共享密钥 |
@@ -88,7 +88,42 @@ site_id、device_id、measurement_point_id、protocol 和 frames 是必填字段
 }
 ~~~
 
-生产链路为：192 接收并解析原始帧，写入 192 本机 PostgreSQL，并异步追加本地 JSONL；192 PostgreSQL 通过 PostgreSQL 原生逻辑复制同步业务表到 Monitor Center PostgreSQL。104 只通过 `POWER_MONITOR_CENTER_API_URL` 查询中心数据并展示趋势，不直接写中心数据库。旧版 journald/NATS 链路仅用于兼容迁移，不再作为新的数据库同步方案。
+生产链路为：接收节点验证请求后，先把每个原始帧追加到本机 JSONL，执行 `flush` 和 `fsync`，再打印 journald 结构化日志并写入本机 PostgreSQL。数据库不可用时接口返回 503，但已经落盘的原始帧仍可恢复。源 PostgreSQL 通过原生逻辑复制同步业务表到 Monitor Center PostgreSQL；展示节点只查询中心数据，不直接写中心数据库。旧版 journald/NATS 链路仅用于兼容迁移，不再作为新的数据库同步方案。
+
+### 数据库故障后的恢复
+
+恢复脚本会重新解析 JSONL 并补写原始帧、指标、帧统计和每日用电量。脚本以
+`request_id + sequence + direction` 生成稳定事件 ID；已存在的报文会跳过，因此可以
+安全地重放整个文件，重复运行不会把统计值累加两次。
+
+先只校验归档格式，不连接数据库：
+
+~~~bash
+cd /opt/iotmonitor/api
+python3 replay_raw_archive.py --archive /var/lib/iotmonitor/dlt645-frames.jsonl --dry-run
+~~~
+
+数据库恢复后，加载与 API 服务相同的环境变量并执行重放：
+
+~~~bash
+set -a
+. /etc/iotmonitor/api.env
+set +a
+python3 /opt/iotmonitor/api/replay_raw_archive.py
+~~~
+
+输出中的 `inserted` 是本次补写数量，`duplicates` 是数据库中已经存在而跳过的数量。
+文件很大时可使用 `--start-line N` 从指定行开始，但完整重放最稳妥。JSONL 是恢复依据，
+不能在尚未备份或确认数据库完整前删除；还需要监控磁盘空间并制定保留策略。
+
+实时查看接收到的结构化报文日志：
+
+~~~bash
+journalctl -u power-monitor-api.service -f -o cat
+~~~
+
+`dlt645_raw_frame` 日志在数据库操作之前输出；真正用于恢复的是经过 `fsync` 的 JSONL，
+因为 journald 会受系统保留空间和轮转策略影响。
 
 192 上的 agent 环境必须设置 `MONITOR_CENTER_JOURNAL_UNIT=power-monitor-api.service`。中心端也兼容旧 agent 发送的普通 `raw` 日志，会从 `MESSAGE` 中兜底识别 `dlt645_raw_frame`。
 

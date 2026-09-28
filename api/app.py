@@ -6,7 +6,6 @@ import hmac
 import json
 import math
 import os
-import queue
 import re
 import sqlite3
 import sys
@@ -74,6 +73,11 @@ class ApiError(Exception):
         self.status = status
         self.code = code
         self.message = message
+
+
+def _is_database_error(error: Exception) -> bool:
+    """Recognize optional PostgreSQL driver errors without requiring psycopg2 for SQLite deployments."""
+    return isinstance(error, sqlite3.Error) or error.__class__.__module__.split(".", 1)[0] in {"psycopg", "psycopg2"}
 
 
 class PowerReportStore:
@@ -198,7 +202,7 @@ class PowerReportStore:
 
 
 class RawFrameStore:
-    """Archives raw frames asynchronously and stores queryable copies in SQLite."""
+    """Durably archives raw frames before storing queryable database copies."""
 
     def __init__(self, database_path: str, archive_path: Optional[str], *, enable_database: bool = True,
                  monitor_database_url: Optional[str] = None, monitor_api_url: Optional[str] = None,
@@ -209,14 +213,12 @@ class RawFrameStore:
         self.monitor_database_url = monitor_database_url
         self.monitor_api_url = monitor_api_url
         self.monitor_api_key = monitor_api_key
-        self._archive_queue: "queue.Queue[Optional[str]]" = queue.Queue()
-        self._archive_thread = threading.Thread(target=self._archive_worker, name="dlt645-archive", daemon=True)
+        self._archive_lock = threading.Lock()
         if enable_database and database_path != ":memory:":
             Path(database_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         Path(self.archive_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         if enable_database:
             self._initialize()
-        self._archive_thread.start()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=5)
@@ -261,6 +263,10 @@ class RawFrameStore:
                     cursor.execute(
                         """CREATE INDEX IF NOT EXISTS iot_dlt645_frames_metric_time_idx
                            ON iot_dlt645_frames (metric_key, captured_at DESC)"""
+                    )
+                    cursor.execute(
+                        """CREATE INDEX IF NOT EXISTS iot_dlt645_frames_source_event_idx
+                           ON iot_dlt645_frames (source_id, event_id)"""
                     )
                     cursor.execute(
                         """
@@ -410,8 +416,9 @@ class RawFrameStore:
             raise RuntimeError("psycopg2 is required for Monitor Center storage") from error
         return psycopg2.connect(self.monitor_database_url, connect_timeout=5, options="-c timezone=UTC")
 
-    def enqueue_archive(self, request_id: str, received_at: str, payload: Dict[str, Any]) -> int:
-        """Queue JSONL writes before the synchronous database transaction starts."""
+    def append_archive(self, request_id: str, received_at: str, payload: Dict[str, Any]) -> int:
+        """Append and fsync a request before any database write is attempted."""
+        lines = []
         for frame in payload["frames"]:
             decoded = decode_raw_metric(
                 {"measurement_point_id": payload["measurement_point_id"], "protocol": payload["protocol"], **frame}
@@ -421,8 +428,10 @@ class RawFrameStore:
                 "metric_value": decoded["value"] if decoded else None,
                 "metric_unit": decoded["unit"] if decoded else "frame",
             }
-            line = json.dumps(
+            lines.append(json.dumps(
                 {
+                    "archive_version": 1,
+                    "event_id": f"{request_id}:{frame['sequence']}:{frame['direction']}",
                     "request_id": request_id,
                     "received_at": received_at,
                     "site_id": payload["site_id"],
@@ -434,25 +443,13 @@ class RawFrameStore:
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
-            )
-            self._archive_queue.put(line)
-        return len(payload["frames"])
-
-    def _archive_worker(self) -> None:
-        try:
+            ))
+        with self._archive_lock:
             with open(self.archive_path, "a", encoding="utf-8") as archive:
-                while True:
-                    line = self._archive_queue.get()
-                    try:
-                        if line is None:
-                            return
-                        archive.write(line + "\n")
-                        archive.flush()
-                    finally:
-                        self._archive_queue.task_done()
-        except OSError:
-            # SQLite remains the authoritative query store; log the archive failure.
-            print(json.dumps({"event": "dlt645_archive_error", "archive_path": self.archive_path}), file=sys.stderr, flush=True)
+                archive.write("\n".join(lines) + "\n")
+                archive.flush()
+                os.fsync(archive.fileno())
+        return len(lines)
 
     @staticmethod
     def _refresh_estimated_daily_energy(
@@ -621,6 +618,18 @@ class RawFrameStore:
                     energy_dates: set = set()
                     for frame in payload["frames"]:
                         event_id = f"{request_id}:{frame['sequence']}:{frame['direction']}"
+                        cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (event_id,))
+                        cursor.execute(
+                            """
+                            SELECT id
+                            FROM iot_dlt645_frames
+                            WHERE source_id = %s AND event_id = %s
+                            LIMIT 1
+                            """,
+                            ("iotmonitor-192", event_id),
+                        )
+                        if cursor.fetchone() is not None:
+                            continue
                         decoded = decode_raw_metric(
                             {"measurement_point_id": payload["measurement_point_id"], "protocol": payload["protocol"], **frame}
                         )
@@ -708,29 +717,30 @@ class RawFrameStore:
                 connection.commit()
             return inserted_frames
         with self._connect() as connection:
-            connection.executemany(
-                """
-                INSERT INTO raw_frames (
-                    request_id, site_id, device_id, measurement_point_id,
-                    protocol, sequence, captured_at, direction, frame_hex, received_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        request_id,
-                        payload["site_id"],
-                        payload["device_id"],
-                        payload["measurement_point_id"],
-                        payload["protocol"],
-                        frame["sequence"],
-                        frame["captured_at"],
-                        frame["direction"],
-                        frame["frame_hex"],
-                        received_at,
+            inserted_frames = 0
+            for frame in payload["frames"]:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO raw_frames (
+                        request_id, site_id, device_id, measurement_point_id,
+                        protocol, sequence, captured_at, direction, frame_hex, received_at
                     )
-                    for frame in payload["frames"]
-                ],
-            )
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM raw_frames
+                        WHERE request_id = ? AND sequence = ? AND direction = ?
+                    )
+                    """,
+                    (
+                        request_id, payload["site_id"], payload["device_id"],
+                        payload["measurement_point_id"], payload["protocol"], frame["sequence"],
+                        frame["captured_at"], frame["direction"], frame["frame_hex"], received_at,
+                        request_id, frame["sequence"], frame["direction"],
+                    ),
+                )
+                inserted_frames += cursor.rowcount
+            if inserted_frames == 0:
+                return 0
             connection.execute(
                 """
                 INSERT INTO iot_frame_stats
@@ -749,12 +759,12 @@ class RawFrameStore:
                 (
                     payload["site_id"],
                     payload["device_id"],
-                    len(payload["frames"]),
+                    inserted_frames,
                     received_at,
                     datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
                 ),
             )
-        return len(payload["frames"])
+        return inserted_frames
 
     def list_recent(self, *, limit: int, site_id: Optional[str] = None, device_id: Optional[str] = None,
                     direction: Optional[str] = None, start_at: Optional[str] = None,
@@ -1221,9 +1231,7 @@ class RawFrameStore:
         return round(max(energy, 0.0), 6)
 
     def close(self) -> None:
-        if self._archive_thread.is_alive():
-            self._archive_queue.put(None)
-            self._archive_thread.join(timeout=2)
+        pass
 
 
 def _identifier(value: Any, field_name: str) -> str:
@@ -1725,12 +1733,18 @@ class PowerMonitorHandler(BaseHTTPRequestHandler):
             payload = validate_raw_frame_payload(self._read_json_body())
             request_id = str(uuid.uuid4())
             received_at = datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-            self.server.raw_store.enqueue_archive(request_id, received_at, payload)
+            self.server.raw_store.append_archive(request_id, received_at, payload)
+            self.server.log_raw_frames(request_id, received_at, payload)
             self.server.raw_store.ingest(request_id, received_at, payload)
             self.server.forward_raw_frames(payload)
-            self.server.log_raw_frames(request_id, received_at, payload)
         except ApiError as error:
             self._error_response(error)
+            return
+        except OSError:
+            self.log_error("raw frame durable archive write failed")
+            self._error_response(
+                ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "archive_unavailable", "raw frame archive is unavailable")
+            )
             return
         except sqlite3.Error:
             self.log_error("raw frame database operation failed")
@@ -1742,6 +1756,14 @@ class PowerMonitorHandler(BaseHTTPRequestHandler):
             self.log_error("raw frame synchronization failed")
             self._error_response(
                 ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "sync_unavailable", "Monitor Center synchronization is unavailable")
+            )
+            return
+        except Exception as error:
+            if not _is_database_error(error):
+                raise
+            self.log_error("raw frame database operation failed")
+            self._error_response(
+                ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "storage_unavailable", "raw frame storage is unavailable")
             )
             return
 
