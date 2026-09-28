@@ -104,7 +104,10 @@
     const min = axisConfig ? axisConfig.min : rawMin - span * 0.15;
     const max = axisConfig ? axisConfig.max : rawMax + span * 0.15;
     const x = (index) => margin.left + index / Math.max(points.length - 1, 1) * (width - margin.left - margin.right);
-    const y = (value) => margin.top + (1 - (value - min) / (max - min)) * (height - margin.top - margin.bottom);
+    const plotValue = axisConfig
+      ? (value) => Math.max(min, Math.min(max, value))
+      : (value) => value;
+    const y = (value) => margin.top + (1 - (plotValue(value) - min) / (max - min)) * (height - margin.top - margin.bottom);
     const path = smoothPath(values, x, y);
     const tickStep = axisConfig ? axisConfig.step : (max - min) / 4;
     const labelStep = axisConfig ? axisConfig.labelStep : tickStep;
@@ -112,10 +115,11 @@
     const grid = Array.from({ length: tickCount + 1 }, (_, index) => {
       const value = min + tickStep * index;
       const position = y(value);
-      const label = index % Math.max(1, Math.round(labelStep / tickStep)) === 0
+      const isMajor = index % Math.max(1, Math.round(labelStep / tickStep)) === 0;
+      const label = isMajor
         ? `<text x="${margin.left - 8}" y="${position + 3}" text-anchor="end">${value.toFixed(digits)}</text>`
         : '';
-      return `<line x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"></line>${label}`;
+      return `<line class="${isMajor ? 'chart-grid-major' : 'chart-grid-minor'}" x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"></line>${label}`;
     }).join('');
     const labels = points.map((point, index) => {
       if (index !== 0 && index !== points.length - 1 && index % Math.max(1, Math.ceil(points.length / 5)) !== 0) return '';
@@ -126,7 +130,8 @@
       if (index !== points.length - 1 && index % dotStep !== 0) return '';
       return `<circle cx="${x(index)}" cy="${y(values[index])}" r="${index === points.length - 1 ? 4 : 2.5}" fill="${color}"><title>${escapeHtml(formatChartTime(point.captured_at))}: ${values[index].toFixed(digits)} ${unit}</title></circle>`;
     }).join('');
-    target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g class="chart-grid-lines">${grid}</g>${labels}<path class="chart-line" stroke="${color}" d="${path}"></path>${dots}</svg>`;
+    const clipId = `${target.id || 'trend-chart'}-clip`;
+    target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs><clipPath id="${clipId}"><rect x="${margin.left}" y="${margin.top}" width="${width - margin.left - margin.right}" height="${height - margin.top - margin.bottom}"></rect></clipPath></defs><g class="chart-grid-lines">${grid}</g><line class="chart-axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"></line>${labels}<g clip-path="url(#${clipId})"><path class="chart-line" stroke="${color}" d="${path}"></path>${dots}</g></svg>`;
   };
 
   const renderMetric = (key, metric) => {
