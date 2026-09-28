@@ -103,6 +103,10 @@ cd /opt/iotmonitor/api
 python3 replay_raw_archive.py --archive /var/lib/iotmonitor/dlt645-frames.jsonl --dry-run
 ~~~
 
+传入当前 JSONL 路径时，脚本会自动发现同目录下按日期命名的轮转文件，按照从旧到新的
+顺序读取 `.gz`、尚未压缩的最近轮转文件以及当前 JSONL。也可以把 `--archive` 直接指向
+某一个 `.gz` 文件，只校验或恢复该文件。
+
 数据库恢复后，加载与 API 服务相同的环境变量并执行重放：
 
 ~~~bash
@@ -112,9 +116,16 @@ set +a
 python3 /opt/iotmonitor/api/replay_raw_archive.py
 ~~~
 
-输出中的 `inserted` 是本次补写数量，`duplicates` 是数据库中已经存在而跳过的数量。
+输出中的 `files` 是本次读取的归档文件数，`inserted` 是本次补写数量，`duplicates` 是数据库中已经存在而跳过的数量。
 文件很大时可使用 `--start-line N` 从指定行开始，但完整重放最稳妥。JSONL 是恢复依据，
-不能在尚未备份或确认数据库完整前删除；还需要监控磁盘空间并制定保留策略。
+不能在尚未备份或确认数据库完整前删除。
+
+### 原始报文日志轮转
+
+生产环境使用 `deploy/iotmonitor-raw-archive.logrotate`：每天轮转一次，保留 90 天，历史
+文件使用 gzip 压缩。最近一次轮转文件延迟到下一天压缩，确保已经打开旧文件的并发请求
+完成写入；API 每次追加都会重新打开文件，因此采用重命名加创建新文件的方式，不使用
+`copytruncate`，不会产生复制和截断之间的丢帧窗口。
 
 实时查看接收到的结构化报文日志：
 

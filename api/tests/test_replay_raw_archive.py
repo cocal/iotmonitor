@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import gzip
 import io
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,7 +12,12 @@ from pathlib import Path
 API_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(API_ROOT))
 
-from replay_raw_archive import payload_from_record, replay  # noqa: E402
+from replay_raw_archive import (  # noqa: E402
+    discover_archive_paths,
+    payload_from_record,
+    replay,
+    replay_archives,
+)
 
 
 class ReplayRawArchiveTest(unittest.TestCase):
@@ -41,6 +48,23 @@ class ReplayRawArchiveTest(unittest.TestCase):
 
         self.assertEqual("esp8266-12f-001", payload["device_id"])
         self.assertEqual(42, payload["frames"][0]["sequence"])
+
+    def test_discovers_plain_and_gzip_rotations_before_active_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            base = Path(temporary_directory) / "dlt645-frames.jsonl"
+            oldest = Path(str(base) + ".2026-09-26.gz")
+            newer = Path(str(base) + ".2026-09-27")
+            with gzip.open(str(oldest), "wt", encoding="utf-8") as stream:
+                stream.write(json.dumps(self.record()) + "\n")
+            newer.write_text(json.dumps(self.record()) + "\n", encoding="utf-8")
+            base.write_text(json.dumps(self.record()) + "\n", encoding="utf-8")
+            Path(str(base) + ".unrelated").write_text("ignored", encoding="utf-8")
+
+            paths = discover_archive_paths(base)
+            result = replay_archives(paths, None)
+
+        self.assertEqual([oldest.name, newer.name, base.name], [path.name for path in paths])
+        self.assertEqual({"files": 3, "scanned": 3, "inserted": 0, "duplicates": 0}, result)
 
 
 if __name__ == "__main__":
