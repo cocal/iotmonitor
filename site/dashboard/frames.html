@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d1829">
   <title>原始帧监控 | IoT Monitor</title>
-  <link rel="stylesheet" href="./frames.css?v=3a92580b95c4">
+  <link rel="stylesheet" href="./frames.css?v=f49a8e134c91">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -40,8 +40,8 @@
         <article class="metric-card metric-card-cyan"><span class="metric-label">A 相电压</span><div class="metric-reading"><strong id="metric-voltage">--</strong><b>V</b></div><span class="metric-foot" id="metric-voltage-time">等待有效帧</span></article>
         <article class="metric-card metric-card-green"><span class="metric-label">A 相电流</span><div class="metric-reading"><strong id="metric-current">--</strong><b>A</b></div><span class="metric-foot" id="metric-current-time">等待有效帧</span></article>
         <article class="metric-card metric-card-blue"><span class="metric-label">瞬时有功功率</span><div class="metric-reading"><strong id="metric-power">--</strong><b>W</b></div><span class="metric-foot" id="metric-power-time">等待有效帧</span></article>
-        <article class="metric-card metric-card-total-energy"><span class="metric-label">累计总电量</span><div class="metric-reading"><strong id="metric-total-energy">--</strong><b>kWh</b></div><span class="metric-foot" id="metric-total-energy-time">等待累计读数</span></article>
-        <article class="metric-card metric-card-energy"><span class="metric-label">今日累计电量</span><div class="metric-reading"><strong id="metric-daily-energy">--</strong><b>kWh</b></div><span class="metric-foot" id="metric-daily-energy-foot">今日末值 − 昨日末值</span></article>
+        <article class="metric-card metric-card-total-energy"><span class="metric-label">累计总电量</span><div class="metric-reading"><strong id="metric-total-energy">--</strong><b>kWh</b></div><span class="metric-income" id="metric-total-energy-income">收益 -- 元</span><span class="metric-foot" id="metric-total-energy-time">等待累计读数</span></article>
+        <article class="metric-card metric-card-energy"><span class="metric-label">今日累计电量</span><div class="metric-reading"><strong id="metric-daily-energy">--</strong><b>kWh</b></div><span class="metric-income" id="metric-daily-energy-income">收益 -- 元</span><span class="metric-foot" id="metric-daily-energy-foot">今日末值 − 昨日末值</span></article>
         <article class="metric-card metric-card-amber"><span class="metric-label">已接收原始帧</span><div class="metric-reading"><strong id="metric-total">0</strong><b>条</b></div><span class="metric-foot" id="metric-latest-date">等待数据</span></article>
       </section>
 
@@ -95,6 +95,6 @@
     <dl class="detail-grid" id="frame-detail"></dl>
     <div class="hex-detail"><span>FRAME_HEX</span><code id="dialog-hex"></code></div>
   </dialog>
-  <script src="./frames.js?v=30f7e3684658"></script>
+  <script src="./frames.js?v=d29f258d73ed"></script>
 </body>
 </html>

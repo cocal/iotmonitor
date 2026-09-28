@@ -62,9 +62,9 @@
   };
 
   const metricMap = {
-    'voltage-a': { card: 'metric-voltage', time: 'metric-voltage-time', chart: 'chart-voltage', current: 'chart-voltage-value', color: '#0088a8', digits: 1 },
+    'voltage-a': { card: 'metric-voltage', time: 'metric-voltage-time', chart: 'chart-voltage', current: 'chart-voltage-value', color: '#0088a8', digits: 1, axis: { min: 0, max: 200, step: 5, labelStep: 20 } },
     'current-a': { card: 'metric-current', time: 'metric-current-time', chart: 'chart-current', current: 'chart-current-value', color: '#13845c', digits: 3 },
-    'instantaneous-active-power': { card: 'metric-power', time: 'metric-power-time', chart: 'chart-power', current: 'chart-power-value', color: '#2563eb', digits: 1 },
+    'instantaneous-active-power': { card: 'metric-power', time: 'metric-power-time', chart: 'chart-power', current: 'chart-power-value', color: '#2563eb', digits: 1, axis: { min: 0, max: 2000, step: 100, labelStep: 100 } },
     temperature: { chart: 'chart-temperature', current: 'chart-temperature-value', color: '#d97706', digits: 1 }
   };
 
@@ -84,7 +84,7 @@
     return path;
   };
 
-  const renderChart = (target, points, color, unit, digits) => {
+  const renderChart = (target, points, color, unit, digits, axisConfig = null) => {
     if (!points.length) {
       target.classList.add('is-empty');
       target.innerHTML = '<span>等待有效测量数据</span>';
@@ -101,15 +101,21 @@
     const rawMin = Math.min(...values);
     const rawMax = Math.max(...values);
     const span = Math.max(rawMax - rawMin, Math.abs(rawMax) * 0.05, 1);
-    const min = rawMin - span * 0.15;
-    const max = rawMax + span * 0.15;
+    const min = axisConfig ? axisConfig.min : rawMin - span * 0.15;
+    const max = axisConfig ? axisConfig.max : rawMax + span * 0.15;
     const x = (index) => margin.left + index / Math.max(points.length - 1, 1) * (width - margin.left - margin.right);
     const y = (value) => margin.top + (1 - (value - min) / (max - min)) * (height - margin.top - margin.bottom);
     const path = smoothPath(values, x, y);
-    const grid = Array.from({ length: 5 }, (_, index) => {
-      const value = min + (max - min) * index / 4;
+    const tickStep = axisConfig ? axisConfig.step : (max - min) / 4;
+    const labelStep = axisConfig ? axisConfig.labelStep : tickStep;
+    const tickCount = Math.round((max - min) / tickStep);
+    const grid = Array.from({ length: tickCount + 1 }, (_, index) => {
+      const value = min + tickStep * index;
       const position = y(value);
-      return `<line x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"></line><text x="${margin.left - 8}" y="${position + 3}" text-anchor="end">${value.toFixed(digits)}</text>`;
+      const label = index % Math.max(1, Math.round(labelStep / tickStep)) === 0
+        ? `<text x="${margin.left - 8}" y="${position + 3}" text-anchor="end">${value.toFixed(digits)}</text>`
+        : '';
+      return `<line x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"></line>${label}`;
     }).join('');
     const labels = points.map((point, index) => {
       if (index !== 0 && index !== points.length - 1 && index % Math.max(1, Math.ceil(points.length / 5)) !== 0) return '';
@@ -131,7 +137,7 @@
     if (config.card) byId(config.card).textContent = value;
     if (config.current) byId(config.current).textContent = value;
     if (config.time) byId(config.time).textContent = latest ? `${formatTime(latest.captured_at)} 更新` : '等待有效帧';
-    renderChart(byId(config.chart), normalized.points, config.color, normalized.unit, config.digits);
+    renderChart(byId(config.chart), normalized.points, config.color, normalized.unit, config.digits, config.axis);
   };
 
   const renderMetrics = (metrics) => {
@@ -221,13 +227,20 @@
 
   const applyEnergySummary = (summary) => {
     const hasNumber = (value) => value !== null && value !== '' && Number.isFinite(Number(value));
+    const pricePerKwh = 0.52;
     const totalEnergy = summary && summary.total_energy_kwh;
     const dailyEnergy = summary && summary.daily_energy_kwh;
     byId('metric-total-energy').textContent = hasNumber(totalEnergy) ? Number(totalEnergy).toFixed(3) : '--';
+    byId('metric-total-energy-income').textContent = hasNumber(totalEnergy)
+      ? `收益 ${(Number(totalEnergy) * pricePerKwh).toFixed(2)} 元`
+      : '收益 -- 元';
     byId('metric-total-energy-time').textContent = hasNumber(totalEnergy)
       ? `${formatTime(summary.total_energy_at)} 电表累计读数`
       : '设备未上报累计电量';
     byId('metric-daily-energy').textContent = hasNumber(dailyEnergy) ? Number(dailyEnergy).toFixed(3) : '--';
+    byId('metric-daily-energy-income').textContent = hasNumber(dailyEnergy)
+      ? `收益 ${(Number(dailyEnergy) * pricePerKwh).toFixed(2)} 元`
+      : '收益 -- 元';
     const qualityText = {
       'no-total-energy': '设备未上报累计电量',
       'no-reading': '今日尚无累计读数',
@@ -317,7 +330,7 @@
       } else {
         const metric = (result.metrics || []).find((item) => item.key === state.trendKey) || { points: [], unit: '' };
         const config = metricMap[state.trendKey] || { color: '#2563eb', digits: 1 };
-        renderChart(chart, metric.points || [], config.color, metric.unit, config.digits);
+        renderChart(chart, metric.points || [], config.color, metric.unit, config.digits, config.axis);
       }
       const count = state.trendKey === 'daily-energy'
         ? (result.daily_energy || []).length
