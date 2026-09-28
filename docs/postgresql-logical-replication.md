@@ -11,8 +11,9 @@
     -> 192 /api/v1/dlt645/frame
     -> 192 PostgreSQL
        - iot_dlt645_frames
-       - iot_dlt645_metrics
-       - iot_dlt645_daily_energy
+       - iot_meter_frame_metrics
+       - iot_frame_stats
+       - iot_daily_energy
     -> PostgreSQL logical replication
     -> Monitor Center PostgreSQL
     -> 104 查询 API / 页面
@@ -54,15 +55,17 @@ GRANT CONNECT ON DATABASE iotmonitor TO monitor_repl;
 GRANT USAGE ON SCHEMA public TO monitor_repl;
 GRANT SELECT ON TABLE
   iot_dlt645_frames,
-  iot_dlt645_metrics,
-  iot_dlt645_daily_energy
+  iot_meter_frame_metrics,
+  iot_frame_stats,
+  iot_daily_energy
 TO monitor_repl;
 
 CREATE PUBLICATION iotmonitor_pub
 FOR TABLE
   iot_dlt645_frames,
-  iot_dlt645_metrics,
-  iot_dlt645_daily_energy;
+  iot_meter_frame_metrics,
+  iot_frame_stats,
+  iot_daily_energy;
 ```
 
 如果某张表尚未创建，应先完成表迁移，再创建 publication，避免初始化时缺表。
@@ -79,6 +82,18 @@ FOR TABLE
 4. 完成一次快照校验后，再创建 subscription。
 
 逻辑复制只复制行数据，不会自动解决两端 schema 差异，也不会复制 DDL。
+
+当前 publication `iotmonitor_pub` 已包含以下对象：
+
+- `iot_dlt645_frames` 的在线分区（当前为 2026-08、2026-09 和 default）；
+- `iot_meter_frame_metrics`：每个原始帧解析出的指标明细；
+- `iot_frame_stats`：站点/设备帧数和最后接收时间；
+- `iot_daily_energy`：每日累计电量和功率积分结果。
+
+后三张表由 192 接收服务在写入原始帧的同一事务中更新，再由 PostgreSQL
+逻辑复制到 Monitor Center。Monitor Center 查询服务不会在请求期间重算这些表，
+避免与订阅 apply worker 争用锁。只有需要兼容“只复制原始帧”的旧部署时，才设置
+`MONITOR_CENTER_LEGACY_DERIVED_SYNC=true`。
 
 在 schema 对齐后，在 Monitor Center 数据库预先创建同名、同结构的表和索引，然后执行：
 
@@ -198,3 +213,26 @@ FROM pg_subscription_rel;
 3. 检查源库 `pg_stat_replication` 为 `streaming`。
 4. 检查 Monitor Center 的同一 `request_id` 已出现。
 5. 临时断开 WireGuard，继续发送报文，再恢复连接，确认数据补齐且没有重复记录。
+
+## 2026-09-28 派生表复制升级记录
+
+本次升级将 `iot_meter_frame_metrics`、`iot_frame_stats` 和
+`iot_daily_energy` 加入原生逻辑复制。源库先完成历史解析和统计回填，目标库再执行
+publication refresh；三张表的订阅状态均达到 `ready` 后恢复服务。
+
+升级检查发现，旧订阅只持续复制了后半段原始帧，导致目标库中 123,198 条指标无法
+关联原始帧。已从源库幂等回填 125,342 条历史原始帧，回填后孤立指标数为 0。
+Monitor Center 已停止查询时补算派生表，并忽略旧消息链路中的电表事件，避免与
+PostgreSQL 复制重复写入和重复计数。
+
+数据恢复边界：
+
+- Monitor Center 或订阅端停止期间，源库仍正常接收的数据由复制槽保留 WAL，恢复后
+  可以完整追平。
+- 源接收 API 或源数据库停止期间，当前 ESP8266 固件不会缓存上传失败的帧，无法从
+  数据库补回现场采样。本次确认存在 `10:58:20-11:00:21`（121 秒）和
+  `11:02:16-11:19:33`（1,037 秒）两个采集空档；相邻成功报文序列号连续，说明设备
+  没有保存空档期间的采样。
+
+后续数据库维护应保持源接收 API 在线；如果必须停止源端，需先在固件增加持久化队列
+或在网关侧设置断网缓存，否则只能恢复已入源库的数据，不能恢复未上传的现场采样。

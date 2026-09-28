@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d1829">
   <title>原始帧监控 | IoT Monitor</title>
-  <link rel="stylesheet" href="./frames.css?v=20260830-6">
+  <link rel="stylesheet" href="./frames.css?v=3a92580b95c4">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -40,21 +40,25 @@
         <article class="metric-card metric-card-cyan"><span class="metric-label">A 相电压</span><div class="metric-reading"><strong id="metric-voltage">--</strong><b>V</b></div><span class="metric-foot" id="metric-voltage-time">等待有效帧</span></article>
         <article class="metric-card metric-card-green"><span class="metric-label">A 相电流</span><div class="metric-reading"><strong id="metric-current">--</strong><b>A</b></div><span class="metric-foot" id="metric-current-time">等待有效帧</span></article>
         <article class="metric-card metric-card-blue"><span class="metric-label">瞬时有功功率</span><div class="metric-reading"><strong id="metric-power">--</strong><b>W</b></div><span class="metric-foot" id="metric-power-time">等待有效帧</span></article>
+        <article class="metric-card metric-card-total-energy"><span class="metric-label">累计总电量</span><div class="metric-reading"><strong id="metric-total-energy">--</strong><b>kWh</b></div><span class="metric-foot" id="metric-total-energy-time">等待累计读数</span></article>
+        <article class="metric-card metric-card-energy"><span class="metric-label">今日累计电量</span><div class="metric-reading"><strong id="metric-daily-energy">--</strong><b>kWh</b></div><span class="metric-foot" id="metric-daily-energy-foot">今日末值 − 昨日末值</span></article>
         <article class="metric-card metric-card-amber"><span class="metric-label">已接收原始帧</span><div class="metric-reading"><strong id="metric-total">0</strong><b>条</b></div><span class="metric-foot" id="metric-latest-date">等待数据</span></article>
       </section>
 
-      <section class="trend-grid" aria-label="三项电力指标趋势">
-        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">ACTIVE POWER</p><h2>瞬时有功功率趋势</h2></div><span class="chart-current"><strong id="chart-power-value">--</strong> W</span></div><div id="chart-power" class="trend-chart" role="img" aria-label="瞬时有功功率趋势图"></div></article>
-        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">VOLTAGE</p><h2>A 相电压趋势</h2></div><span class="chart-current"><strong id="chart-voltage-value">--</strong> V</span></div><div id="chart-voltage" class="trend-chart trend-chart-small" role="img" aria-label="A 相电压趋势图"></div></article>
-        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">CURRENT</p><h2>A 相电流趋势</h2></div><span class="chart-current"><strong id="chart-current-value">--</strong> A</span></div><div id="chart-current" class="trend-chart trend-chart-small" role="img" aria-label="A 相电流趋势图"></div></article>
-        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">COLLECTION QUALITY</p><h2>采集成功 / 失败趋势</h2><p class="panel-note">每秒计数 · 最近 100 条帧</p></div><div class="chart-legend"><span><i class="legend-success" aria-hidden="true"></i>成功</span><span><i class="legend-failure" aria-hidden="true"></i>失败</span></div></div><div id="chart-collection" class="trend-chart" role="img" aria-label="每秒采集成功和失败数量趋势图"></div></article>
+      <section class="trend-grid" aria-label="电力指标和设备温度趋势">
+        <p class="trend-window-note">趋势默认展示最近 1 小时，横轴标注月-日与时:分</p>
+        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">ACTIVE POWER</p><h2>瞬时有功功率趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-power-value">--</strong> W</span><button class="chart-expand" type="button" data-trend="instantaneous-active-power" aria-label="放大瞬时有功功率趋势" title="放大趋势图">↗</button></div></div><div id="chart-power" class="trend-chart" role="img" aria-label="瞬时有功功率趋势图"></div></article>
+        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">VOLTAGE</p><h2>A 相电压趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-voltage-value">--</strong> V</span><button class="chart-expand" type="button" data-trend="voltage-a" aria-label="放大 A 相电压趋势" title="放大趋势图">↗</button></div></div><div id="chart-voltage" class="trend-chart trend-chart-small" role="img" aria-label="A 相电压趋势图"></div></article>
+        <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">CURRENT</p><h2>A 相电流趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-current-value">--</strong> A</span><button class="chart-expand" type="button" data-trend="current-a" aria-label="放大 A 相电流趋势" title="放大趋势图">↗</button></div></div><div id="chart-current" class="trend-chart trend-chart-small" role="img" aria-label="A 相电流趋势图"></div></article>
+        <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">MODULE TEMPERATURE</p><h2>IM1253B 温度趋势</h2><p class="panel-note">模块内部温度 · 随批量电力数据同步采集</p></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-temperature-value">--</strong> °C</span><button class="chart-expand" type="button" data-trend="temperature" aria-label="放大 IM1253B 温度趋势" title="放大趋势图">↗</button></div></div><div id="chart-temperature" class="trend-chart trend-chart-small" role="img" aria-label="IM1253B 模块温度趋势图"></div></article>
+        <article class="trend-panel trend-panel-wide trend-panel-combined"><div class="panel-heading"><div><p class="panel-kicker">QUALITY + DAILY ENERGY</p><h2>采集质量与每日用电量</h2><p class="panel-note">质量按秒统计 · 每日电量使用相邻两日末值之差</p></div><span class="chart-current chart-current-stacked"><small>近 30 日合计</small><span><strong id="chart-energy-total">--</strong> kWh</span></span></div><div class="trend-combined-grid"><section class="trend-subpanel"><div class="trend-subheading"><h3>采集成功 / 失败</h3><div class="panel-heading-actions"><div class="chart-legend"><span><i class="legend-success" aria-hidden="true"></i>成功</span><span><i class="legend-failure" aria-hidden="true"></i>失败</span></div><button class="chart-expand" type="button" data-trend="collection" aria-label="放大采集成功和失败趋势" title="放大趋势图">↗</button></div></div><div id="chart-collection" class="trend-chart trend-chart-half" role="img" aria-label="每秒采集成功和失败数量趋势图"></div></section><section class="trend-subpanel"><div class="trend-subheading"><div><h3>每日累计用电量</h3><p class="panel-note">最近 30 天 · 当日末值减前一日末值</p></div><button class="chart-expand" type="button" data-trend="daily-energy" aria-label="放大每日累计用电量趋势" title="放大趋势图">↗</button></div><div id="chart-daily-energy" class="trend-chart trend-chart-half" role="img" aria-label="每日累计用电量柱状图"></div></section></div></article>
       </section>
 
       <section class="toolbar" aria-label="原始帧筛选">
         <label class="search-field"><span>设备</span><input id="device-filter" type="search" placeholder="device_id" autocomplete="off"></label>
         <label class="select-field"><span>方向</span><select id="direction-filter"><option value="">全部</option><option value="rx">RX 接收</option><option value="tx">TX 发送</option></select></label>
         <button id="clear-button" class="text-button" type="button">清除筛选</button>
-        <span class="toolbar-status" id="toolbar-status">每 5 秒自动刷新</span>
+        <span class="toolbar-status" id="toolbar-status">状态 5 秒 · 报文 20 秒 · 趋势/电量 60 秒</span>
       </section>
 
       <section class="table-panel" aria-labelledby="table-title">
@@ -79,11 +83,18 @@
     </main>
   </div>
 
+  <dialog id="trend-dialog" class="trend-dialog">
+    <div class="dialog-head"><div><p class="panel-kicker">TREND DETAIL</p><h2 id="trend-dialog-title">趋势详情</h2></div><button id="close-trend-dialog" class="icon-button icon-button-light" type="button" aria-label="关闭趋势详情" title="关闭趋势详情">×</button></div>
+    <div class="trend-range" role="group" aria-label="趋势时间范围"><button type="button" data-window="1h">1 小时</button><button type="button" data-window="6h">6 小时</button><button type="button" data-window="24h">24 小时</button><button type="button" data-window="7d">7 天</button></div>
+    <div class="trend-custom-range"><label>开始时间<input id="trend-start" type="datetime-local"></label><label>结束时间<input id="trend-end" type="datetime-local"></label><button id="trend-query" class="text-button" type="button">查询</button></div>
+    <div id="trend-dialog-chart" class="trend-chart trend-chart-dialog" role="img" aria-label="放大趋势图"></div><p id="trend-dialog-status" class="trend-dialog-status"></p>
+  </dialog>
+
   <dialog id="frame-dialog" class="frame-dialog">
     <div class="dialog-head"><div><p class="panel-kicker">FRAME DETAIL</p><h2>原始帧详情</h2></div><button id="close-dialog" class="icon-button icon-button-light" type="button" aria-label="关闭详情" title="关闭详情">×</button></div>
     <dl class="detail-grid" id="frame-detail"></dl>
     <div class="hex-detail"><span>FRAME_HEX</span><code id="dialog-hex"></code></div>
   </dialog>
-  <script src="./frames.js?v=20260830-7"></script>
+  <script src="./frames.js?v=71a85eb918df"></script>
 </body>
 </html>

@@ -2,6 +2,16 @@
 
 这是供 ESP8266-12F 与 Arduino IDE 1.6.8 使用的兼容版本，线上 HTML 文档同步提供同一份程序。
 
+## IM1253B 版本
+
+IM1253B 使用 TTL UART 和 Modbus-RTU，与下方 DDSU666/DL/T 645 程序的接口不同，代码单独放在
+[`im1253b_esp8266/im1253b_esp8266.ino`](im1253b_esp8266/im1253b_esp8266.ino)。接线、寄存器、单位、
+CRC 和当前 4 字节响应假设见
+[`docs/im1253b-esp8266-design.md`](../../docs/im1253b-esp8266-design.md)。
+
+该程序仍是现场验证版：手册标注的 4 字节数值需通过完整串口响应确认，未接 IM1253B 前不能
+确认设备的实际响应长度和比例。Wi-Fi、Token、API 地址均使用占位符，需要在私有烧录副本中填写。
+
 ## 固定环境
 
 - Arduino IDE 1.6.8

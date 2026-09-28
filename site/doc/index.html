@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="IoT Monitor 电力表原始帧 API 文档：标准 443 域名入口、裸 IP 调试入口、DL/T 645-2007 和 ESP8266-12F 示例。">
+  <meta name="description" content="IoT Monitor 电力表原始帧 API 文档：标准 443 域名入口、DL/T 645-2007、IM1253B Modbus-RTU 和 ESP8266-12F 示例。">
   <title>电力遥测 API 文档 | IoT Monitor</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/doc/styles.css">
@@ -21,7 +21,7 @@
       </a>
       <div class="header-actions">
         <span class="api-status"><span class="status-dot" aria-hidden="true"></span> API v1 · 443</span>
-        <a class="dashboard-link" href="/dashboard/">监控页面</a>
+        <a class="dashboard-link" href="/dashboard/frames.html">监控页面</a>
         <a class="download-link" href="/">方案文档</a>
       </div>
     </div>
@@ -37,6 +37,7 @@
         <a href="#request">请求体</a>
         <a href="#esp8266">ESP8266-12F</a>
         <a href="#1.6.8">Arduino 1.6.8</a>
+        <a href="#modbus">IM1253B Modbus</a>
         <a href="#response">响应与错误</a>
         <a href="#health">健康检查</a>
         <a href="#rules">重试与限制</a>
@@ -55,7 +56,7 @@
       <section class="api-hero" aria-labelledby="page-title">
         <div class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span>设备上报接口 · v1</div>
         <h1 id="page-title">电力遥测 API</h1>
-        <p class="hero-copy">让 ESP8266-12F、ESPHome 节点或 BLE 网关把 DDSU666 的 DL/T 645-2007 原始帧安全写入监控服务，业务解析留在服务器。</p>
+        <p class="hero-copy">让 ESP8266-12F、ESPHome 节点或 BLE 网关把 DDSU666 的 DL/T 645-2007、IM1253B 的 Modbus-RTU 原始帧安全写入监控服务，业务解析留在服务器。</p>
         <div class="hero-endpoint">
           <span class="method-badge method-post">POST</span>
           <code>https://iot.ohmyskills.top/api/v1/dlt645/frame</code>
@@ -78,7 +79,7 @@
         <div class="section-heading"><span>01</span><h2 id="quick-start-title">快速开始</h2></div>
         <div class="steps-grid">
           <div class="step-item"><b>01</b><div><strong>准备身份</strong><p>为设备分配 site_id、device_id、measurement_point_id，并取得独立 Bearer Token。</p></div></div>
-          <div class="step-item"><b>02</b><div><strong>读取原文</strong><p>ESP8266 通过隔离 RS485 收集 DL/T 645-2007 原始字节，不在固件中解码。</p></div></div>
+          <div class="step-item"><b>02</b><div><strong>读取原文</strong><p>ESP8266 通过 TTL UART 或隔离 RS485 收集电表原始字节，不在固件中提前生成业务值。</p></div></div>
           <div class="step-item"><b>03</b><div><strong>提交帧</strong><p>每个原始帧使用单调递增的 sequence。网络失败时重复发送同一帧即可重试。</p></div></div>
         </div>
       </section>
@@ -87,7 +88,7 @@
         <div class="section-heading"><span>02</span><h2 id="endpoint-title">上报接口</h2></div>
         <div class="endpoint-card">
           <div class="endpoint-card-head"><span class="method-badge method-post">POST</span><code>/api/v1/dlt645/frame</code><span class="endpoint-note">需要鉴权</span></div>
-          <p>设备将一个测量点的 1 条或多条 DL/T 645-2007 原始帧提交到 API。服务器只记录原文并返回 202 Accepted。</p>
+          <p>设备将一个测量点的 1 条或多条 DL/T 645-2007 或 Modbus-RTU 原始帧提交到 API。为兼容已有客户端，Modbus 继续复用这个路径，不新增端口或接口；服务器保留原文并返回 202 Accepted。</p>
         </div>
         <div class="subheading"><h3>请求头</h3><span>Headers</span></div>
         <div class="table-wrap">
@@ -128,7 +129,7 @@
               <tr><td><code>site_id</code></td><td>string</td><td>是</td><td>1～64 个字母、数字、.、_、:、-。</td></tr>
               <tr><td><code>device_id</code></td><td>string</td><td>是</td><td>设备身份，建议烧录板号，例如 esp8266-12f-001。</td></tr>
               <tr><td><code>measurement_point_id</code></td><td>string</td><td>是</td><td>测量点身份，例如 inverter-ac-output。</td></tr>
-              <tr><td><code>protocol</code></td><td>string</td><td>是</td><td>固定为 DL/T 645-2007。</td></tr>
+              <tr><td><code>protocol</code></td><td>string</td><td>是</td><td><code>DL/T 645-2007</code> 或 <code>MODBUS-RTU</code>。</td></tr>
               <tr><td><code>frames</code></td><td>array</td><td>是</td><td>每批 1～100 帧；请求体最大 256 KiB。</td></tr>
               <tr><td><code>sequence</code></td><td>integer</td><td>是</td><td>0～2^63-1；同一设备和测量点单调递增。</td></tr>
               <tr><td><code>captured_at</code></td><td>RFC 3339</td><td>是</td><td>必须带时区，例如 +08:00 或 Z。</td></tr>
@@ -337,8 +338,66 @@ const bool METER_ADDRESS_IS_CONFIGURED = true;
         <div class="callout callout-red"><strong>接线安全：</strong>电表侧必须使用隔离 RS485 模块。不要把 ESP8266、USB-TTL 或电脑直接连接到市电侧线路；不确定配电箱操作时应由电工完成。</div>
       </section>
 
+      <section class="api-section" id="modbus" aria-labelledby="modbus-title">
+        <div class="section-heading"><span>06</span><h2 id="modbus-title">IM1253B Modbus-RTU 模式</h2></div>
+        <p>IM1253B 与 DDSU666 的接口不同：它使用 TTL UART，默认 <code>4800 bps · 8N1</code>，不需要 RS485 收发器、DE、/RE 或 GPIO5。ESP8266-12F 的 <code>GPIO1/TX → IM1253B RX</code>、<code>GPIO3/RX → IM1253B TX</code>，日志仍从 GPIO2 输出。</p>
+        <div class="artifact-bar">
+          <div><span class="verified-pill">整块读取版</span><strong>ESP8266-12F IM1253B client</strong><small>Arduino 1.6.8 · ESP8266 Core 2.3.0 · 每轮一次查询与一次上报</small></div>
+          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="/doc/files/im1253b_esp8266.ino" download>下载 .ino</a><a class="artifact-link" href="/doc/files/im1253b-esp8266-design.md" download>下载协议说明</a></div>
+        </div>
+        <div class="subheading"><h3>数据项与单位</h3><span>Registers</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>数据项</th><th>地址</th><th>响应数据</th><th>换算</th></tr></thead>
+            <tbody>
+              <tr><td>电压</td><td><code>0x0048</code></td><td>4 字节无符号大端</td><td><code>raw × 0.0001 V</code></td></tr>
+              <tr><td>电流</td><td><code>0x0049</code></td><td>4 字节无符号大端</td><td><code>raw × 0.0001 A</code></td></tr>
+              <tr><td>有功功率</td><td><code>0x004A</code></td><td>4 字节无符号大端</td><td><code>raw × 0.0001 W</code></td></tr>
+              <tr><td>有功总电量</td><td><code>0x004B</code></td><td>4 字节无符号大端</td><td><code>raw × 0.0001 kWh</code></td></tr>
+              <tr><td>功率因数</td><td><code>0x004C</code></td><td>4 字节无符号大端</td><td><code>raw × 0.001</code></td></tr>
+              <tr><td>温度 / 频率</td><td><code>0x004E / 0x004F</code></td><td>4 字节无符号大端</td><td><code>raw × 0.01 °C / Hz</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="subheading"><h3>请求与响应示例</h3><span>CRC-16</span></div>
+        <div class="code-card compact-code">
+          <div class="code-card-head"><span>Modbus-RTU · 一次读取全部 8 项</span><button class="copy-button copy-dark" type="button" data-copy-target="#im1253b-modbus-example">复制</button></div>
+          <pre><code id="im1253b-modbus-example">请求: 01 03 00 48 00 08 C4 1A
+响应: 01 03 20 [8 项 × 4 字节数据] CRC_LO CRC_HI
+
+CRC: Modbus CRC-16，初值 0xFFFF，多项式 0xA001，低字节先发送
+设备地址: 01 · 功能码: 03 · 默认串口: 4800/8N1</code></pre>
+        </div>
+        <div class="subheading"><h3>批量读取执行流程</h3><span>One request</span></div>
+        <ol class="usage-list">
+          <li>每 5 秒生成一条查询：设备地址使用 <code>IM1253B_ADDRESS</code>（默认 <code>1</code>），起始地址为 <code>0x0048</code>，数据项数量为 <code>0x0008</code>；不需要填写 DL/T 645 电表号码，CRC 由程序自动计算。</li>
+          <li>UART0 只发送一次 <code>01 03 00 48 00 08 C4 1A</code>。程序最多等待 800 ms 开始响应，再按 30 ms 字节静默间隔结束收帧；因为没有第二条指标查询，所以不再固定等待 1 秒。</li>
+          <li>程序检查响应是否正好为 37 字节，并校验设备地址、功能码 <code>03</code>、数据长度 <code>20</code> 和 Modbus CRC-16。</li>
+          <li>有效响应以测量点 <code>inverter-ac-output:im1253b-block</code> 向 API 上传一次；服务器从同一条原始帧拆分全部趋势数据。</li>
+        </ol>
+        <div class="subheading"><h3>32 字节数据排列</h3><span>Payload map</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>响应数据偏移</th><th>地址</th><th>数据项</th><th>服务端处理</th></tr></thead>
+            <tbody>
+              <tr><td><code>DATA[0..3]</code></td><td><code>0x0048</code></td><td>电压</td><td>生成电压趋势</td></tr>
+              <tr><td><code>DATA[4..7]</code></td><td><code>0x0049</code></td><td>电流</td><td>生成电流趋势</td></tr>
+              <tr><td><code>DATA[8..11]</code></td><td><code>0x004A</code></td><td>有功功率</td><td>生成瞬时功率趋势</td></tr>
+              <tr><td><code>DATA[12..15]</code></td><td><code>0x004B</code></td><td>有功总电量</td><td>生成累计电量数据</td></tr>
+              <tr><td><code>DATA[16..19]</code></td><td><code>0x004C</code></td><td>功率因数</td><td>生成功率因数趋势</td></tr>
+              <tr><td><code>DATA[20..23]</code></td><td><code>0x004D</code></td><td>二氧化碳排量</td><td>保留在原始帧，当前页面不展示</td></tr>
+              <tr><td><code>DATA[24..27]</code></td><td><code>0x004E</code></td><td>温度</td><td>生成温度趋势</td></tr>
+              <tr><td><code>DATA[28..31]</code></td><td><code>0x004F</code></td><td>频率</td><td>生成频率趋势</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-blue"><strong>一次读完：</strong>手册第 7 页给出了读取 8 个数据项的示例。程序每 5 秒只发送一次 <code>01 03 00 48 00 08 C4 1A</code>，正常响应共 37 字节：<code>01 03 20</code> + 32 字节数据 + CRC。设备只上传这一条原始响应，服务器再拆出电压、电流、功率、电量、功率因数、温度和频率。</div>
+        <div class="callout callout-blue"><strong>异常处理：</strong>程序会打印完整 TX/RX、响应长度和 CRC。只有长度、地址、功能码、数据长度和 CRC 全部正确时才作为有效整块；其他报文仍原样上传到 <code>im1253b-block:invalid-response</code>，用于判断模块是否在线。</div>
+        <div class="callout callout-red"><strong>电气安全：</strong>IM1253B 的 <code>V+</code>/<code>V-</code> 是计量侧隔离供电，不能与 ESP8266 的低压侧随意短接；接入市电侧前由具备资质的人员确认隔离和接线。</div>
+      </section>
+
       <section class="api-section" id="response" aria-labelledby="response-title">
-        <div class="section-heading"><span>06</span><h2 id="response-title">响应与错误</h2></div>
+        <div class="section-heading"><span>07</span><h2 id="response-title">响应与错误</h2></div>
         <div class="response-grid">
           <div class="response-card response-ok"><span class="status-code">202</span><div><strong>Logged</strong><p>原始帧已写入服务日志。</p></div></div>
           <div class="response-card response-warn"><span class="status-code">401</span><div><strong>Unauthorized</strong><p>Bearer Token 缺失或不正确。</p></div></div>
@@ -357,7 +416,7 @@ const bool METER_ADDRESS_IS_CONFIGURED = true;
       </section>
 
       <section class="api-section" id="health" aria-labelledby="health-title">
-        <div class="section-heading"><span>07</span><h2 id="health-title">健康检查</h2></div>
+        <div class="section-heading"><span>08</span><h2 id="health-title">健康检查</h2></div>
         <div class="health-row"><span class="method-badge method-get">GET</span><code>https://iot.ohmyskills.top/api/v1/health</code><span class="endpoint-note">无需鉴权</span></div>
         <div class="code-card compact-code"><pre><code>curl https://iot.ohmyskills.top/api/v1/health
 
@@ -365,9 +424,9 @@ const bool METER_ADDRESS_IS_CONFIGURED = true;
       </section>
 
       <section class="api-section" id="rules" aria-labelledby="rules-title">
-        <div class="section-heading"><span>08</span><h2 id="rules-title">重试与限制</h2></div>
+        <div class="section-heading"><span>09</span><h2 id="rules-title">重试与限制</h2></div>
         <ul class="rules-list">
-          <li><strong>原文：</strong>服务端不解释 DL/T 645-2007 帧，frame_hex 按上传内容写入日志。</li>
+          <li><strong>原文：</strong>服务端保留 DL/T 645-2007 和 Modbus-RTU 的 frame_hex；已知格式且校验正确时才生成趋势测量。</li>
           <li><strong>可重试：</strong>网络错误、超时和 5xx；重试时保留原 sequence 和原始帧。</li>
           <li><strong>不可盲重试：</strong>401、409、422 等 4xx。401 需要检查或轮换令牌，409 需要检查数据，422 需要修正请求。</li>
           <li><strong>批次限制：</strong>每次 1～100 帧，整个 JSON 请求不超过 256 KiB；帧内容保持原始字节顺序。</li>

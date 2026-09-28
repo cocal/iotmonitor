@@ -1,6 +1,6 @@
 # 电力表原始帧接收 API
 
-这是 iotmonitor 的电力表原始帧接收服务。服务仅使用 Python 标准库，接收 ESP8266/ESPHome 节点上传的 DL/T 645-2007 原始帧，并在日志中原样记录；单片机不解析电表业务数据，服务端后续再解析。
+这是 iotmonitor 的电力表原始帧接收服务。服务接收 DL/T 645-2007 和 IM1253B `MODBUS-RTU` 原始帧，并在日志中原样记录；单片机上传原始报文，服务端按已知协议解析可识别的数据项。
 
 ## 启动
 
@@ -13,7 +13,7 @@ export POWER_MONITOR_LOG_ONLY=true
 python3 app.py
 ~~~
 
-默认监听 127.0.0.1:MONITOR_API_PORT。可使用以下环境变量修改：
+默认监听 127.0.0.1:8090。可使用以下环境变量修改：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ python3 app.py
 | POWER_MONITOR_PORT | 8090 | 监听端口 |
 | POWER_MONITOR_DATABASE | data/power-monitor.db | 旧解析接口兼容用 SQLite 路径；生产趋势数据应同步到 Monitor Center |
 | POWER_MONITOR_RAW_ARCHIVE | 与数据库同目录的 dlt645-frames.jsonl | 原始帧本地 JSONL 归档路径 |
-| POWER_MONITOR_CENTER_DATABASE_URL | 无 | Monitor Center PostgreSQL 连接串；设置后使用 `iot_dlt645_frames` 独立表 |
+| POWER_MONITOR_DATABASE_URL | 无 | 192 本机 PostgreSQL 连接串；设置后接收服务写入本机 `iot_dlt645_frames` |
 | POWER_MONITOR_CENTER_API_URL | 无 | 页面/API 查询代理地址，例如 `http://MONITOR_CENTER_API_HOST:MONITOR_CENTER_API_PORT/api/dlt645/frames` |
 | POWER_MONITOR_CENTER_API_KEY | 无 | 查询代理调用中心端点的共享密钥 |
 | POWER_MONITOR_RAW_FORWARD_URL | 无 | 可选的上游原始帧 POST 地址，用于跨服务器同步 |
@@ -33,13 +33,19 @@ python3 app.py
 外部有标准入口和旧设备兼容入口：
 
 - 域名入口： https://iot.ohmyskills.top/api/v1/dlt645/frame，由域名证书保护，ESP8266 正式运行应校验证书。
-- Arduino 1.6.8 / ESP8266 Core 2.3.0 兼容入口： https://LEGACY_API_HOST:LEGACY_API_PORT/api/v1/dlt645/frame，使用自签证书、TLS 1.0 和 AES128-SHA，仅供旧版 axTLS 客户端。
+- Arduino 1.6.8 / ESP8266 Core 2.3.0 兼容入口：`https://LEGACY_API_HOST:LEGACY_API_PORT/api/v1/dlt645/frame`，使用自签证书、TLS 1.0 和 AES128-SHA，仅供旧版 axTLS 客户端。真实地址和端口只保存在部署配置中。
 - 两台服务器运行同一个 app.py 和同一个 API 路径，分别把原始帧归档到本地 JSONL，并同步到各自配置的 SQLite 数据库；systemd 日志仍保留接收审计事件。
-- Python 服务只绑定服务器本机 127.0.0.1:MONITOR_API_PORT，外部请求由 Nginx 443 或 旧版兼容入口转发。
+- Python 服务只绑定服务器本机内部端口，外部请求由 Nginx 标准入口或私有兼容入口转发。
 
-旧版兼容入口不验证服务器身份，存在中间人窃取 Token 的风险。它只解决旧版 axTLS 的连接兼容问题，现代客户端仍必须使用域名 443 和受信任证书。
+旧版兼容入口不验证服务器身份，存在中间人窃取 Token 的风险。它只解决旧版 axTLS 的连接兼容问题，现代客户端仍必须使用域名标准 HTTPS 和受信任证书。
 
 ## 原始帧上报接口
+
+`protocol` 支持 `DL/T 645-2007` 和 `MODBUS-RTU`。IM1253B 的 ESP8266 固件第一版
+使用 `MODBUS-RTU`，上传每项的完整响应帧；服务端只解析功能码 `03`、4 字节数值且
+CRC 正确的响应。协议假设、接线和程序见
+[`docs/im1253b-esp8266-design.md`](../docs/im1253b-esp8266-design.md) 和
+[`im1253b_esp8266.ino`](../firmware/arduino-1.6.8/im1253b_esp8266/im1253b_esp8266.ino)。
 
 POST /api/v1/dlt645/frame
 
@@ -82,7 +88,7 @@ site_id、device_id、measurement_point_id、protocol 和 frames 是必填字段
 }
 ~~~
 
-生产链路为：192 接收并解析原始帧，先异步追加本地 JSONL，再由 `monitor-center-agent` 从 `power-monitor-api.service` 的 journald 读取结构化日志，经 WireGuard/NATS JetStream 流式送到 Monitor Center；中心端归档并同步写入 PostgreSQL 独立表 `iot_dlt645_frames`。104 只通过 `POWER_MONITOR_CENTER_API_URL` 查询中心数据并展示趋势，不直接写中心数据库。
+生产链路为：192 接收并解析原始帧，写入 192 本机 PostgreSQL，并异步追加本地 JSONL；192 PostgreSQL 通过 PostgreSQL 原生逻辑复制同步业务表到 Monitor Center PostgreSQL。104 只通过 `POWER_MONITOR_CENTER_API_URL` 查询中心数据并展示趋势，不直接写中心数据库。旧版 journald/NATS 链路仅用于兼容迁移，不再作为新的数据库同步方案。
 
 192 上的 agent 环境必须设置 `MONITOR_CENTER_JOURNAL_UNIT=power-monitor-api.service`。中心端也兼容旧 agent 发送的普通 `raw` 日志，会从 `MESSAGE` 中兜底识别 `dlt645_raw_frame`。
 
