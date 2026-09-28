@@ -375,7 +375,10 @@
     const requestedDevice = state.device;
     resetTrendCacheIfNeeded(requestedDevice);
     const end = new Date();
-    const start = new Date(end.getTime() - 60 * 60 * 1000);
+    // 首次打开或当天缓存为空时查询当天数据，设备长时间掉线后刷新页面仍能恢复最后趋势点。
+    const start = Object.keys(state.trendCache).length
+      ? new Date(end.getTime() - 60 * 60 * 1000)
+      : new Date(end.getFullYear(), end.getMonth(), end.getDate());
     const params = new URLSearchParams({ limit: '1000', start_at: start.toISOString(), end_at: end.toISOString() });
     ['voltage-a', 'current-a', 'instantaneous-active-power', 'temperature'].forEach((key) => params.append('metric_key', key));
     if (requestedDevice) params.set('device_id', requestedDevice);
