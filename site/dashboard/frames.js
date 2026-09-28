@@ -40,19 +40,26 @@
   const resetTrendCacheIfNeeded = (device) => {
     const today = localDayKey();
     if (state.trendCacheDevice !== device || state.trendCacheDay !== today) {
-      state.trendCache = {};
       state.trendCacheDevice = device;
       state.trendCacheDay = today;
+      try {
+        state.trendCache = JSON.parse(window.localStorage.getItem(`iotmonitor-trends:${device || 'all'}:${today}`) || '{}');
+      } catch (error) {
+        state.trendCache = {};
+      }
     }
   };
-  const pointsFromToday = (points) => points
-    .filter((point) => {
-      const capturedAt = new Date(point.captured_at);
-      return !Number.isNaN(capturedAt.getTime()) && localDayKey(capturedAt) === state.trendCacheDay;
-    })
+  const validTrendPoints = (points) => points
     .filter((point) => Number.isFinite(Number(point.value)))
     .sort((left, right) => new Date(left.captured_at) - new Date(right.captured_at))
     .slice(-60);
+  const saveTrendCache = () => {
+    try {
+      window.localStorage.setItem(`iotmonitor-trends:${state.trendCacheDevice || 'all'}:${state.trendCacheDay}`, JSON.stringify(state.trendCache));
+    } catch (error) {
+      // Storage may be disabled; the in-memory cache still protects an open page.
+    }
+  };
 
   const metricMap = {
     'voltage-a': { card: 'metric-voltage', time: 'metric-voltage-time', chart: 'chart-voltage', current: 'chart-voltage-value', color: '#0088a8', digits: 1 },
@@ -390,9 +397,10 @@
       const metrics = result.metrics || [];
       Object.keys(metricMap).forEach((key) => {
         const metric = metrics.find((item) => item.key === key);
-        const points = metric ? pointsFromToday(metric.points || []) : [];
+        const points = metric ? validTrendPoints(metric.points || []) : [];
         if (points.length) state.trendCache[key] = points;
       });
+      saveTrendCache();
       renderMetrics(Object.keys(metricMap).map((key) => ({
         key,
         unit: (metrics.find((item) => item.key === key) || {}).unit || '',
