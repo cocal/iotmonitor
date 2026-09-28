@@ -64,7 +64,7 @@
   const metricMap = {
     'voltage-a': { card: 'metric-voltage', time: 'metric-voltage-time', chart: 'chart-voltage', current: 'chart-voltage-value', color: '#0088a8', digits: 1, axis: { min: 0, max: 200, step: 5, labelStep: 20 } },
     'current-a': { card: 'metric-current', time: 'metric-current-time', chart: 'chart-current', current: 'chart-current-value', color: '#13845c', digits: 3 },
-    'instantaneous-active-power': { card: 'metric-power', time: 'metric-power-time', chart: 'chart-power', current: 'chart-power-value', color: '#2563eb', digits: 1, axis: { min: 0, max: 2000, step: 100, labelStep: 100 } },
+    'instantaneous-active-power': { card: 'metric-power', time: 'metric-power-time', chart: 'chart-power', current: 'chart-power-value', color: '#2563eb', digits: 1, axis: { min: 0, max: 2000, step: 100, labelStep: 100, autoMax: true } },
     temperature: { chart: 'chart-temperature', current: 'chart-temperature-value', color: '#d97706', digits: 1 }
   };
 
@@ -102,7 +102,11 @@
     const rawMax = Math.max(...values);
     const span = Math.max(rawMax - rawMin, Math.abs(rawMax) * 0.05, 1);
     const min = axisConfig ? axisConfig.min : rawMin - span * 0.15;
-    const max = axisConfig ? axisConfig.max : rawMax + span * 0.15;
+    const max = axisConfig
+      ? axisConfig.autoMax
+        ? Math.min(axisConfig.max, Math.max(axisConfig.min + axisConfig.step * 2, Math.ceil((rawMax * 1.2) / axisConfig.step) * axisConfig.step))
+        : axisConfig.max
+      : rawMax + span * 0.15;
     const x = (index) => margin.left + index / Math.max(points.length - 1, 1) * (width - margin.left - margin.right);
     const plotValue = axisConfig
       ? (value) => Math.max(min, Math.min(max, value))
