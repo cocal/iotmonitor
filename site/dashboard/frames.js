@@ -4,7 +4,10 @@
     direction: '',
     timers: [],
     trendKey: null,
-    filterTimer: null
+    filterTimer: null,
+    trendCache: {},
+    trendCacheDevice: '',
+    trendCacheDay: null
   };
   const byId = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
@@ -30,6 +33,26 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
   const isMobileViewport = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches;
+  const localDayKey = (date = new Date()) => {
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+  const resetTrendCacheIfNeeded = (device) => {
+    const today = localDayKey();
+    if (state.trendCacheDevice !== device || state.trendCacheDay !== today) {
+      state.trendCache = {};
+      state.trendCacheDevice = device;
+      state.trendCacheDay = today;
+    }
+  };
+  const pointsFromToday = (points) => points
+    .filter((point) => {
+      const capturedAt = new Date(point.captured_at);
+      return !Number.isNaN(capturedAt.getTime()) && localDayKey(capturedAt) === state.trendCacheDay;
+    })
+    .filter((point) => Number.isFinite(Number(point.value)))
+    .sort((left, right) => new Date(left.captured_at) - new Date(right.captured_at))
+    .slice(-60);
 
   const metricMap = {
     'voltage-a': { card: 'metric-voltage', time: 'metric-voltage-time', chart: 'chart-voltage', current: 'chart-voltage-value', color: '#0088a8', digits: 1 },
@@ -350,6 +373,7 @@
 
   const loadTrends = async () => {
     const requestedDevice = state.device;
+    resetTrendCacheIfNeeded(requestedDevice);
     const end = new Date();
     const start = new Date(end.getTime() - 60 * 60 * 1000);
     const params = new URLSearchParams({ limit: '1000', start_at: start.toISOString(), end_at: end.toISOString() });
@@ -360,9 +384,23 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       if (state.device !== requestedDevice) return;
-      renderMetrics(result.metrics || []);
+      const metrics = result.metrics || [];
+      Object.keys(metricMap).forEach((key) => {
+        const metric = metrics.find((item) => item.key === key);
+        const points = metric ? pointsFromToday(metric.points || []) : [];
+        if (points.length) state.trendCache[key] = points;
+      });
+      renderMetrics(Object.keys(metricMap).map((key) => ({
+        key,
+        unit: (metrics.find((item) => item.key === key) || {}).unit || '',
+        points: state.trendCache[key] || []
+      })));
     } catch (error) {
-      Object.keys(metricMap).forEach((key) => renderMetric(key, null));
+      renderMetrics(Object.keys(metricMap).map((key) => ({
+        key,
+        unit: '',
+        points: state.trendCache[key] || []
+      })));
     }
   };
 
@@ -381,7 +419,7 @@
   };
 
   const refreshAll = () => {
-    byId('toolbar-status').textContent = '状态 5 秒 · 报文 20 秒 · 趋势近 1 小时 / 电量 60 秒';
+    byId('toolbar-status').textContent = '状态 5 秒 · 报文 20 秒 · 趋势 5 秒 / 最近 60 点 · 电量 60 秒';
     loadStatus();
     loadFrames();
     loadTrends();
@@ -408,7 +446,7 @@
   state.timers = [
     window.setInterval(loadStatus, 5000),
     window.setInterval(loadFrames, 20000),
-    window.setInterval(loadTrends, 60000),
+    window.setInterval(loadTrends, 5000),
     window.setInterval(loadEnergy, 60000)
   ];
 })();

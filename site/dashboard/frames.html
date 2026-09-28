@@ -46,7 +46,7 @@
       </section>
 
       <section class="trend-grid" aria-label="电力指标和设备温度趋势">
-        <p class="trend-window-note">趋势默认展示最近 1 小时，横轴标注月-日与时:分</p>
+        <p class="trend-window-note">趋势显示当天最近 60 个有效点，横轴标注月-日与时:分</p>
         <article class="trend-panel trend-panel-wide"><div class="panel-heading"><div><p class="panel-kicker">ACTIVE POWER</p><h2>瞬时有功功率趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-power-value">--</strong> W</span><button class="chart-expand" type="button" data-trend="instantaneous-active-power" aria-label="放大瞬时有功功率趋势" title="放大趋势图">↗</button></div></div><div id="chart-power" class="trend-chart" role="img" aria-label="瞬时有功功率趋势图"></div></article>
         <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">VOLTAGE</p><h2>A 相电压趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-voltage-value">--</strong> V</span><button class="chart-expand" type="button" data-trend="voltage-a" aria-label="放大 A 相电压趋势" title="放大趋势图">↗</button></div></div><div id="chart-voltage" class="trend-chart trend-chart-small" role="img" aria-label="A 相电压趋势图"></div></article>
         <article class="trend-panel"><div class="panel-heading"><div><p class="panel-kicker">CURRENT</p><h2>A 相电流趋势</h2></div><div class="panel-heading-actions"><span class="chart-current"><strong id="chart-current-value">--</strong> A</span><button class="chart-expand" type="button" data-trend="current-a" aria-label="放大 A 相电流趋势" title="放大趋势图">↗</button></div></div><div id="chart-current" class="trend-chart trend-chart-small" role="img" aria-label="A 相电流趋势图"></div></article>
@@ -58,7 +58,7 @@
         <label class="search-field"><span>设备</span><input id="device-filter" type="search" placeholder="device_id" autocomplete="off"></label>
         <label class="select-field"><span>方向</span><select id="direction-filter"><option value="">全部</option><option value="rx">RX 接收</option><option value="tx">TX 发送</option></select></label>
         <button id="clear-button" class="text-button" type="button">清除筛选</button>
-        <span class="toolbar-status" id="toolbar-status">状态 5 秒 · 报文 20 秒 · 趋势/电量 60 秒</span>
+        <span class="toolbar-status" id="toolbar-status">状态 5 秒 · 报文 20 秒 · 趋势 5 秒 / 最近 60 点 · 电量 60 秒</span>
       </section>
 
       <section class="table-panel" aria-labelledby="table-title">
@@ -95,6 +95,6 @@
     <dl class="detail-grid" id="frame-detail"></dl>
     <div class="hex-detail"><span>FRAME_HEX</span><code id="dialog-hex"></code></div>
   </dialog>
-  <script src="./frames.js?v=71a85eb918df"></script>
+  <script src="./frames.js?v=3e38c4b8109c"></script>
 </body>
 </html>
