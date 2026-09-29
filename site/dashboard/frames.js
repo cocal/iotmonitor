@@ -2,7 +2,7 @@
   const state = { range: '1h', charts: {}, timers: [], detailMetric: null, loadingTrends: false };
   const metricKeys = ['voltage-a', 'current-a', 'instantaneous-active-power', 'temperature'];
   const metricConfig = {
-    'voltage-a': { title: 'A 相电压', chart: 'voltage-chart', panel: 'panel-voltage', kpi: 'kpi-voltage', time: 'kpi-voltage-time', color: '#0395ad', unit: 'V', digits: 1, min: 0, max: 200, interval: 5 },
+    'voltage-a': { title: 'A 相电压', chart: 'voltage-chart', panel: 'panel-voltage', kpi: 'kpi-voltage', time: 'kpi-voltage-time', color: '#0395ad', unit: 'V', digits: 1, min: 0, max: 200, interval: 50, aggregateMinutes: 10 },
     'current-a': { title: 'A 相电流', chart: 'current-chart', panel: 'panel-current', kpi: 'kpi-current', time: 'kpi-current-time', color: '#15946b', unit: 'A', digits: 3 },
     'instantaneous-active-power': { title: '瞬时有功功率', chart: 'power-chart', panel: null, kpi: 'kpi-power', time: 'kpi-power-time', color: '#2c6bed', unit: 'W', digits: 1, min: 0, max: 2000, interval: 100 },
     temperature: { title: '模块温度', chart: 'temperature-chart', panel: 'panel-temperature', kpi: null, time: null, color: '#bb6d13', unit: '°C', digits: 1 }
@@ -17,24 +17,61 @@
   const formatDateTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '等待数据' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
   const setStatus = (online, text) => { byId('status-text').textContent = text; byId('status-dot').parentElement.classList.toggle('is-offline', !online); };
   const toLocalInputValue = (date) => { const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; };
+  const timeAxisLabel = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }); };
   const getRange = () => {
     const end = new Date();
     if (state.range === 'daylight') return { start: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 6), end: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 18) };
     const hours = Number(state.range.replace('h', '')) || 1;
     return { start: new Date(end.getTime() - hours * 60 * 60 * 1000), end };
   };
+  const aggregateVoltagePoints = (points) => {
+    const bucketSize = 10 * 60 * 1000;
+    const buckets = new Map();
+    points.forEach((point) => {
+      const timestamp = new Date(point.captured_at).getTime();
+      const value = Number(point.value);
+      if (!Number.isFinite(timestamp) || !Number.isFinite(value)) return;
+      const bucket = Math.floor(timestamp / bucketSize) * bucketSize;
+      const item = buckets.get(bucket) || { sum: 0, count: 0 };
+      item.sum += value;
+      item.count += 1;
+      buckets.set(bucket, item);
+    });
+    const known = [...buckets.entries()]
+      .map(([timestamp, item]) => ({ timestamp, value: item.sum / item.count }))
+      .sort((left, right) => left.timestamp - right.timestamp);
+    if (known.length < 2) return known.map((point) => ({ captured_at: new Date(point.timestamp).toISOString(), value: point.value }));
+
+    const result = [];
+    let nextIndex = 0;
+    for (let timestamp = known[0].timestamp; timestamp <= known[known.length - 1].timestamp; timestamp += bucketSize) {
+      while (nextIndex < known.length && known[nextIndex].timestamp < timestamp) nextIndex += 1;
+      const exact = known[nextIndex] && known[nextIndex].timestamp === timestamp ? known[nextIndex] : null;
+      if (exact) {
+        result.push({ captured_at: new Date(timestamp).toISOString(), value: exact.value });
+        continue;
+      }
+      const previous = known[nextIndex - 1];
+      const next = known[nextIndex];
+      if (!previous || !next) continue;
+      const ratio = (timestamp - previous.timestamp) / (next.timestamp - previous.timestamp);
+      result.push({ captured_at: new Date(timestamp).toISOString(), value: previous.value + (next.value - previous.value) * ratio });
+    }
+    return result;
+  };
+  const chartPointsFor = (key, points) => metricConfig[key].aggregateMinutes ? aggregateVoltagePoints(points) : points;
   const makeOption = (points, config, expanded = false) => {
     const values = points.map((point) => [new Date(point.captured_at).getTime(), Number(point.value)]);
     const dataMax = values.length ? Math.max(...values.map((point) => point[1])) : 0;
     const max = config.max ? (config.max === 2000 ? Math.min(2000, Math.max(200, Math.ceil(dataMax * 1.2 / 100) * 100)) : config.max) : undefined;
-    return { animation: false, grid: { left: 56, right: 18, top: 22, bottom: expanded ? 70 : 35 }, tooltip: { trigger: 'axis', confine: true, valueFormatter: (value) => `${Number(value).toFixed(config.digits)} ${config.unit}` }, xAxis: { type: 'time', axisLabel: { color: '#7b899b', fontSize: 10 }, axisLine: { lineStyle: { color: '#cbd6e2' } }, splitLine: { show: false } }, yAxis: { type: 'value', min: config.min, max, interval: config.interval, axisLabel: { color: '#7b899b', fontSize: 10, formatter: (value) => Number(value).toFixed(config.digits) }, axisLine: { show: true, lineStyle: { color: '#cbd6e2' } }, splitLine: { lineStyle: { color: '#e8eef4' } } }, dataZoom: expanded ? [{ type: 'inside', filterMode: 'none' }, { type: 'slider', height: 22, bottom: 15, borderColor: '#dfe7ef', fillerColor: 'rgba(44,107,237,.16)', handleStyle: { color: '#2c6bed' } }] : [], series: [{ type: 'line', smooth: .22, showSymbol: false, symbolSize: 7, data: values, lineStyle: { width: 2.5, color: config.color }, itemStyle: { color: config.color }, areaStyle: { color: config.color, opacity: .08 } }] };
+    return { animation: false, grid: { left: 56, right: 18, top: 22, bottom: expanded ? 70 : 35 }, tooltip: { trigger: 'axis', confine: true, valueFormatter: (value) => `${Number(value).toFixed(config.digits)} ${config.unit}` }, xAxis: { type: 'time', axisLabel: { color: '#7b899b', fontSize: 10, formatter: timeAxisLabel }, axisLine: { lineStyle: { color: '#cbd6e2' } }, splitLine: { show: false } }, yAxis: { type: 'value', min: config.min, max, interval: config.interval, axisLabel: { color: '#7b899b', fontSize: 10, formatter: (value) => Number(value).toFixed(config.digits) }, axisLine: { show: true, lineStyle: { color: '#cbd6e2' } }, splitLine: { lineStyle: { color: '#e8eef4' } } }, dataZoom: expanded ? [{ type: 'inside', filterMode: 'none' }, { type: 'slider', height: 22, bottom: 15, borderColor: '#dfe7ef', fillerColor: 'rgba(44,107,237,.16)', handleStyle: { color: '#2c6bed' } }] : [], series: [{ type: 'line', smooth: .22, connectNulls: true, showSymbol: false, symbolSize: 7, data: values, lineStyle: { width: 2.5, color: config.color }, itemStyle: { color: config.color }, areaStyle: { color: config.color, opacity: .08 } }] };
   };
   const renderMetric = (key, metric) => {
     const config = metricConfig[key]; const points = metric && metric.points ? metric.points.filter((point) => Number.isFinite(Number(point.value))) : []; const latest = points[points.length - 1]; const value = latest ? Number(latest.value).toFixed(config.digits) : '--';
     if (config.kpi) byId(config.kpi).textContent = value;
     if (config.panel) byId(config.panel).textContent = `${value} ${config.unit}`;
     if (config.time) byId(config.time).textContent = latest ? `${formatDateTime(latest.captured_at)} 更新` : '等待有效数据';
-    chartFor(config.chart).setOption(makeOption(points, config), true);
+    chartFor(config.chart).setOption(makeOption(chartPointsFor(key, points), config), true);
   };
   const renderEnergy = (summary) => {
     const total = Number(summary.total_energy_kwh); const daily = Number(summary.daily_energy_kwh); const valid = (value) => Number.isFinite(value);
@@ -67,7 +104,7 @@
     const start = new Date(byId('trend-start').value); const end = new Date(byId('trend-end').value); const status = byId('trend-query-status');
     if (!state.detailMetric || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) { status.textContent = '请选择有效的起止时间'; return; }
     status.textContent = '正在查询...'; const params = new URLSearchParams({ limit: '1000', start_at: start.toISOString(), end_at: end.toISOString(), metric_key: state.detailMetric });
-    try { const response = await fetch(`/api/v1/dlt645/trends?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('detail'); const result = await response.json(); const metric = (result.metrics || []).find((item) => item.key === state.detailMetric); const points = metric && metric.points ? metric.points : []; const config = metricConfig[state.detailMetric]; chartFor('detail-chart').setOption(makeOption(points, config, true), true); status.textContent = points.length ? `${points.length} 个数据点` : '该时间段暂无数据'; } catch (error) { status.textContent = '趋势查询失败，请稍后重试'; }
+    try { const response = await fetch(`/api/v1/dlt645/trends?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('detail'); const result = await response.json(); const metric = (result.metrics || []).find((item) => item.key === state.detailMetric); const points = metric && metric.points ? metric.points : []; const config = metricConfig[state.detailMetric]; const chartPoints = chartPointsFor(state.detailMetric, points); chartFor('detail-chart').setOption(makeOption(chartPoints, config, true), true); status.textContent = chartPoints.length ? `${chartPoints.length} 个数据点` : '该时间段暂无数据'; } catch (error) { status.textContent = '趋势查询失败，请稍后重试'; }
   };
   const openTrendDialog = (metricKey) => { state.detailMetric = metricKey; const config = metricConfig[metricKey]; const range = getRange(); byId('trend-dialog-title').textContent = `${config.title}趋势`; setDialogRange(range.start, range.end, 'trend-start', 'trend-end'); byId('trend-query-status').textContent = ''; byId('trend-dialog').showModal(); window.setTimeout(() => { chartFor('detail-chart').resize(); queryDetailTrend(); }, 0); };
   const queryFrames = async () => {
