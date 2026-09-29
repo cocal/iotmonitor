@@ -14,10 +14,11 @@
   };
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   const formatTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '--:--' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); };
+  const formatClock = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '--:--:--' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }); };
   const formatDateTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '等待数据' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
   const setStatus = (online, text) => { byId('status-text').textContent = text; byId('status-dot').parentElement.classList.toggle('is-offline', !online); };
   const toLocalInputValue = (date) => { const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; };
-  const timeAxisLabel = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }); };
+  const timeAxisLabel = (value) => formatTime(value);
   const getRange = () => {
     const end = new Date();
     if (state.range === 'daylight') return { start: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 6), end: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 18) };
@@ -64,13 +65,13 @@
     const values = points.map((point) => [new Date(point.captured_at).getTime(), Number(point.value)]);
     const dataMax = values.length ? Math.max(...values.map((point) => point[1])) : 0;
     const max = config.max ? (config.max === 2000 ? Math.min(2000, Math.max(200, Math.ceil(dataMax * 1.2 / 100) * 100)) : config.max) : undefined;
-    return { animation: false, grid: { left: 56, right: 18, top: 22, bottom: expanded ? 70 : 35 }, tooltip: { trigger: 'axis', confine: true, valueFormatter: (value) => `${Number(value).toFixed(config.digits)} ${config.unit}` }, xAxis: { type: 'time', axisLabel: { color: '#7b899b', fontSize: 10, formatter: timeAxisLabel }, axisLine: { lineStyle: { color: '#cbd6e2' } }, splitLine: { show: false } }, yAxis: { type: 'value', min: config.min, max, interval: config.interval, axisLabel: { color: '#7b899b', fontSize: 10, formatter: (value) => Number(value).toFixed(config.digits) }, axisLine: { show: true, lineStyle: { color: '#cbd6e2' } }, splitLine: { lineStyle: { color: '#e8eef4' } } }, dataZoom: expanded ? [{ type: 'inside', filterMode: 'none' }, { type: 'slider', height: 22, bottom: 15, borderColor: '#dfe7ef', fillerColor: 'rgba(44,107,237,.16)', handleStyle: { color: '#2c6bed' } }] : [], series: [{ type: 'line', smooth: .22, connectNulls: true, showSymbol: false, symbolSize: 7, data: values, lineStyle: { width: 2.5, color: config.color }, itemStyle: { color: config.color }, areaStyle: { color: config.color, opacity: .08 } }] };
+    return { animation: false, grid: { left: 56, right: 18, top: 22, bottom: expanded ? 70 : 35 }, tooltip: { trigger: 'axis', confine: true, formatter: (params) => { const items = Array.isArray(params) ? params : [params]; const time = timeAxisLabel(items[0] && (items[0].axisValue ?? (Array.isArray(items[0].value) ? items[0].value[0] : items[0].value))); return [time, ...items.map((item) => `${item.marker}${config.title} ${Number(Array.isArray(item.value) ? item.value[1] : item.value).toFixed(config.digits)} ${config.unit}`)].join('<br>'); } }, xAxis: { type: 'time', axisLabel: { color: '#7b899b', fontSize: 10, formatter: timeAxisLabel }, axisLine: { lineStyle: { color: '#cbd6e2' } }, splitLine: { show: false } }, yAxis: { type: 'value', min: config.min, max, interval: config.interval, axisLabel: { color: '#7b899b', fontSize: 10, formatter: (value) => Number(value).toFixed(config.digits) }, axisLine: { show: true, lineStyle: { color: '#cbd6e2' } }, splitLine: { lineStyle: { color: '#e8eef4' } } }, dataZoom: expanded ? [{ type: 'inside', filterMode: 'none' }, { type: 'slider', height: 22, bottom: 15, borderColor: '#dfe7ef', fillerColor: 'rgba(44,107,237,.16)', handleStyle: { color: '#2c6bed' } }] : [], series: [{ type: 'line', smooth: .22, connectNulls: true, showSymbol: false, symbolSize: 7, data: values, lineStyle: { width: 2.5, color: config.color }, itemStyle: { color: config.color }, areaStyle: { color: config.color, opacity: .08 } }] };
   };
   const renderMetric = (key, metric) => {
     const config = metricConfig[key]; const points = metric && metric.points ? metric.points.filter((point) => Number.isFinite(Number(point.value))) : []; const latest = points[points.length - 1]; const value = latest ? Number(latest.value).toFixed(config.digits) : '--';
     if (config.kpi) byId(config.kpi).textContent = value;
     if (config.panel) byId(config.panel).textContent = `${value} ${config.unit}`;
-    if (config.time) byId(config.time).textContent = latest ? `${formatDateTime(latest.captured_at)} 更新` : '等待有效数据';
+    if (config.time) byId(config.time).textContent = latest ? `${formatClock(latest.captured_at)} 更新` : '等待有效数据';
     chartFor(config.chart).setOption(makeOption(chartPointsFor(key, points), config), true);
   };
   const renderEnergy = (summary) => {
