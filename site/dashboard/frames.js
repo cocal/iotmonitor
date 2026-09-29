@@ -1,5 +1,9 @@
 (() => {
-  const state = { range: '1h', charts: {}, timers: [], detailMetric: null, loadingTrends: false, metricSnapshots: {}, metricSignatures: {}, detailSnapshots: {}, framesLoaded: false };
+  const CACHE_KEY = 'iotmonitor:dashboard:last-valid-v1';
+  const localDayKey = (date = new Date()) => { const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; };
+  const readDashboardCache = () => { try { const cached = JSON.parse(window.localStorage.getItem(CACHE_KEY) || 'null'); return cached && cached.dayKey === localDayKey() ? cached : {}; } catch (error) { return {}; } };
+  const cachedDashboard = readDashboardCache();
+  const state = { range: '1h', charts: {}, timers: [], detailMetric: null, loadingTrends: false, metricSnapshots: cachedDashboard.metrics || {}, metricSignatures: {}, detailSnapshots: cachedDashboard.details || {}, framesSnapshot: cachedDashboard.frames || [], framesLoaded: Array.isArray(cachedDashboard.frames) && cachedDashboard.frames.length > 0 };
   const metricKeys = ['voltage-a', 'current-a', 'instantaneous-active-power', 'temperature'];
   const metricConfig = {
     'voltage-a': { title: 'A 相电压', chart: 'voltage-chart', panel: 'panel-voltage', kpi: 'kpi-voltage', time: 'kpi-voltage-time', color: '#0395ad', unit: 'V', digits: 1, min: 0, max: 200, interval: 50, aggregateMinutes: 10 },
@@ -19,6 +23,7 @@
   const formatCaptureTime = (value) => formatClock(value);
   const formatDateTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '等待数据' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
   const setStatus = (online, text) => { byId('status-text').textContent = text; byId('status-dot').parentElement.classList.toggle('is-offline', !online); };
+  const persistDashboardState = () => { try { const metrics = Object.fromEntries(Object.entries(state.metricSnapshots).map(([key, points]) => [key, points.slice(-1000)])); const details = Object.fromEntries(Object.entries(state.detailSnapshots).map(([key, points]) => [key, points.slice(-1000)])); window.localStorage.setItem(CACHE_KEY, JSON.stringify({ dayKey: localDayKey(), metrics, details, frames: state.framesSnapshot.slice(0, 8) })); } catch (error) {} };
   const toLocalInputValue = (date) => { const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; };
   const timeAxisLabel = (value) => formatTime(value);
   const getRange = () => {
@@ -80,6 +85,7 @@
     if (config.panel) byId(config.panel).textContent = `${value} ${config.unit}`;
     if (config.time) byId(config.time).textContent = latest ? `${formatClock(latest.captured_at)} 更新` : '等待有效数据';
     chartFor(config.chart).setOption(makeOption(chartPointsFor(key, points), config), true);
+    persistDashboardState();
   };
   const renderEnergy = (summary) => {
     const total = Number(summary.total_energy_kwh); const daily = Number(summary.daily_energy_kwh); const valid = (value) => Number.isFinite(value);
@@ -105,14 +111,15 @@
     try { const response = await fetch('/api/v1/dlt645/status', { cache: 'no-store' }); if (!response.ok) throw new Error('status'); const status = await response.json(); byId('last-received').textContent = status.last_received_at ? `${formatDateTime(status.last_received_at)} 最近接收` : '等待数据'; setStatus(Boolean(status.online), status.online ? '设备在线' : '设备离线'); } catch (error) { setStatus(false, '状态暂不可用'); }
   };
   const loadEnergy = async () => { try { const response = await fetch('/api/v1/dlt645/summary?days=30', { cache: 'no-store' }); if (!response.ok) throw new Error('energy'); renderEnergy(await response.json()); } catch (error) {} };
-  const loadFrames = async () => { try { const response = await fetch('/api/v1/dlt645/frame?limit=8&summary=0&total=0', { cache: 'no-store' }); if (!response.ok) throw new Error('frames'); const frames = (await response.json()).frames || []; if (frames.length || !state.framesLoaded) { state.framesLoaded = true; renderFrames(frames); } } catch (error) {} };
+  const loadFrames = async () => { try { const response = await fetch('/api/v1/dlt645/frame?limit=8&summary=0&total=0', { cache: 'no-store' }); if (!response.ok) throw new Error('frames'); const frames = (await response.json()).frames || []; if (frames.length || !state.framesLoaded) { state.framesLoaded = true; if (frames.length) { state.framesSnapshot = frames; persistDashboardState(); } renderFrames(frames); } } catch (error) {} };
   const renderFrames = (frames) => { const target = byId('capture-list'); target.innerHTML = frames.length ? frames.map((frame) => `<div class="capture-row"><span class="capture-time">${escapeHtml(formatCaptureTime(frame.captured_at))}</span><span class="capture-name">${escapeHtml(frame.measurement_point_id || frame.device_id || '未命名测点')}</span><span class="capture-value">${frame.metric_value == null ? 'RAW' : escapeHtml(Number(frame.metric_value).toFixed(2))}</span></div>`).join('') : '<div class="capture-empty">暂无采集记录</div>'; };
+  const restoreDashboardState = () => { Object.entries(state.metricSnapshots).forEach(([key, points]) => { if (metricConfig[key] && Array.isArray(points) && points.length) renderMetric(key, { points }); }); if (state.framesSnapshot.length) renderFrames(state.framesSnapshot); };
   const setDialogRange = (start, end, startId, endId) => { byId(startId).value = toLocalInputValue(start); byId(endId).value = toLocalInputValue(end); };
   const queryDetailTrend = async () => {
     const start = new Date(byId('trend-start').value); const end = new Date(byId('trend-end').value); const status = byId('trend-query-status');
     if (!state.detailMetric || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) { status.textContent = '请选择有效的起止时间'; return; }
     status.textContent = '正在查询...'; const params = new URLSearchParams({ limit: '1000', start_at: start.toISOString(), end_at: end.toISOString(), metric_key: state.detailMetric });
-    try { const response = await fetch(`/api/v1/dlt645/trends?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('detail'); const result = await response.json(); const metric = (result.metrics || []).find((item) => item.key === state.detailMetric); const points = metric && metric.points ? metric.points.filter((point) => Number.isFinite(Number(point.value))) : []; const config = metricConfig[state.detailMetric]; const chartPoints = chartPointsFor(state.detailMetric, points); if (chartPoints.length) { state.detailSnapshots[state.detailMetric] = chartPoints; chartFor('detail-chart').setOption(makeOption(chartPoints, config, true), true); status.textContent = `${chartPoints.length} 个数据点`; } else if (state.detailSnapshots[state.detailMetric] || state.metricSnapshots[state.detailMetric]) { status.textContent = '暂无新数据，保留最后状态'; } else { chartFor('detail-chart').setOption(makeOption([], config, true), true); status.textContent = '该时间段暂无数据'; } } catch (error) { status.textContent = '趋势查询失败，请稍后重试'; }
+    try { const response = await fetch(`/api/v1/dlt645/trends?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('detail'); const result = await response.json(); const metric = (result.metrics || []).find((item) => item.key === state.detailMetric); const points = metric && metric.points ? metric.points.filter((point) => Number.isFinite(Number(point.value))) : []; const config = metricConfig[state.detailMetric]; const chartPoints = chartPointsFor(state.detailMetric, points); if (chartPoints.length) { state.detailSnapshots[state.detailMetric] = chartPoints; chartFor('detail-chart').setOption(makeOption(chartPoints, config, true), true); persistDashboardState(); status.textContent = `${chartPoints.length} 个数据点`; } else if (state.detailSnapshots[state.detailMetric] || state.metricSnapshots[state.detailMetric]) { status.textContent = '暂无新数据，保留最后状态'; } else { chartFor('detail-chart').setOption(makeOption([], config, true), true); status.textContent = '该时间段暂无数据'; } } catch (error) { status.textContent = '趋势查询失败，请稍后重试'; }
   };
   const openTrendDialog = (metricKey) => { state.detailMetric = metricKey; const config = metricConfig[metricKey]; const range = getRange(); byId('trend-dialog-title').textContent = `${config.title}趋势`; setDialogRange(range.start, range.end, 'trend-start', 'trend-end'); byId('trend-query-status').textContent = ''; byId('trend-dialog').showModal(); window.setTimeout(() => { const fallback = state.detailSnapshots[metricKey] || state.metricSnapshots[metricKey]; chartFor('detail-chart').resize(); if (fallback && fallback.length) chartFor('detail-chart').setOption(makeOption(fallback, config, true), true); queryDetailTrend(); }, 0); };
   const queryFrames = async () => {
@@ -127,5 +134,5 @@
   document.querySelectorAll('.expand-button').forEach((button) => button.addEventListener('click', () => openTrendDialog(button.dataset.metric)));
   byId('trend-query-form').addEventListener('submit', (event) => { event.preventDefault(); queryDetailTrend(); }); byId('frame-query-form').addEventListener('submit', (event) => { event.preventDefault(); queryFrames(); });
   byId('open-frame-query').addEventListener('click', openFrameQuery); byId('close-trend-dialog').addEventListener('click', () => byId('trend-dialog').close()); byId('close-frame-query').addEventListener('click', () => byId('frame-query-dialog').close()); byId('refresh-button').addEventListener('click', refreshAll);
-  window.addEventListener('resize', () => Object.values(state.charts).forEach((chart) => chart.resize())); refreshAll(); state.timers = [window.setInterval(loadTrends, 5000), window.setInterval(loadStatus, 5000), window.setInterval(loadEnergy, 60000), window.setInterval(loadFrames, 60000)];
+  window.addEventListener('resize', () => Object.values(state.charts).forEach((chart) => chart.resize())); restoreDashboardState(); refreshAll(); state.timers = [window.setInterval(loadTrends, 5000), window.setInterval(loadStatus, 5000), window.setInterval(loadEnergy, 60000), window.setInterval(loadFrames, 60000)];
 })();
