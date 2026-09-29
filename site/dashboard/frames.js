@@ -16,6 +16,7 @@
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   const formatTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '--:--' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); };
   const formatClock = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '--:--:--' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }); };
+  const formatCaptureTime = (value) => formatClock(value);
   const formatDateTime = (value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '等待数据' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
   const setStatus = (online, text) => { byId('status-text').textContent = text; byId('status-dot').parentElement.classList.toggle('is-offline', !online); };
   const toLocalInputValue = (date) => { const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; };
@@ -100,7 +101,7 @@
   };
   const loadEnergy = async () => { try { const response = await fetch('/api/v1/dlt645/summary?days=30', { cache: 'no-store' }); if (!response.ok) throw new Error('energy'); renderEnergy(await response.json()); } catch (error) {} };
   const loadFrames = async () => { try { const response = await fetch('/api/v1/dlt645/frame?limit=8&summary=0&total=0', { cache: 'no-store' }); if (!response.ok) throw new Error('frames'); renderFrames((await response.json()).frames || []); } catch (error) {} };
-  const renderFrames = (frames) => { const target = byId('capture-list'); target.innerHTML = frames.length ? frames.map((frame) => `<div class="capture-row"><span class="capture-time">${escapeHtml(formatTime(frame.captured_at))}</span><span class="capture-name">${escapeHtml(frame.measurement_point_id || frame.device_id || '未命名测点')}</span><span class="capture-value">${frame.metric_value == null ? 'RAW' : escapeHtml(Number(frame.metric_value).toFixed(2))}</span></div>`).join('') : '<div class="capture-empty">暂无采集记录</div>'; };
+  const renderFrames = (frames) => { const target = byId('capture-list'); target.innerHTML = frames.length ? frames.map((frame) => `<div class="capture-row"><span class="capture-time">${escapeHtml(formatCaptureTime(frame.captured_at))}</span><span class="capture-name">${escapeHtml(frame.measurement_point_id || frame.device_id || '未命名测点')}</span><span class="capture-value">${frame.metric_value == null ? 'RAW' : escapeHtml(Number(frame.metric_value).toFixed(2))}</span></div>`).join('') : '<div class="capture-empty">暂无采集记录</div>'; };
   const setDialogRange = (start, end, startId, endId) => { byId(startId).value = toLocalInputValue(start); byId(endId).value = toLocalInputValue(end); };
   const queryDetailTrend = async () => {
     const start = new Date(byId('trend-start').value); const end = new Date(byId('trend-end').value); const status = byId('trend-query-status');

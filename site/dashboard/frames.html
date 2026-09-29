@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102338">
   <title>电力监控 | IoT Monitor</title>
-  <link rel="stylesheet" href="./frames.css?v=bb02cf9fc738">
+  <link rel="stylesheet" href="./frames.css?v=ac3e06e1e430">
 </head>
 <body>
   <div class="v2-shell">
@@ -54,7 +54,7 @@
     </main>
   </div>
 
-  <dialog class="query-dialog" id="trend-dialog">
+  <dialog class="query-dialog trend-query-dialog" id="trend-dialog">
     <div class="dialog-head"><div><p class="v2-eyebrow">TREND QUERY</p><h2 id="trend-dialog-title">趋势详情</h2></div><button class="dialog-close" id="close-trend-dialog" type="button" aria-label="关闭">×</button></div>
     <form class="query-form" id="trend-query-form"><label>开始时间<input id="trend-start" type="datetime-local" required></label><label>结束时间<input id="trend-end" type="datetime-local" required></label><button type="submit">查询</button></form>
     <div id="detail-chart" class="v2-chart detail-chart" role="img" aria-label="趋势详情图"></div><p class="dialog-status" id="trend-query-status"></p>
@@ -68,6 +68,6 @@
   </dialog>
 
   <script src="./vendor/echarts-5.6.0.min.js"></script>
-  <script src="./frames.js?v=a17c5fca82a6"></script>
+  <script src="./frames.js?v=89e16f3ded09"></script>
 </body>
 </html>
