@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="1.5 kW 光伏功率实时监控系统方案：交流电能表、ESP32/ESPHome Wi-Fi 采集节点、可选 BLE 网关和公网 API。">
   <title>光伏功率实时监控方案 | IoT Monitor</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到正文</a>
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="/" aria-label="IoT Monitor 首页">
+      <a class="brand" href="./" aria-label="IoT Monitor 首页">
         <span class="brand-mark" aria-hidden="true">IM</span>
         <span>
           <strong>IoT Monitor</strong>
@@ -21,9 +22,9 @@
       <div class="header-actions">
         <span class="status-dot" aria-hidden="true"></span>
         <span class="status-label">方案文档 · v0.8</span>
-      <a class="dashboard-link" href="/dashboard/frames.html">打开监控</a>
-        <a class="dashboard-link" href="/doc/">API 文档</a>
-        <a class="download-link" href="/方案.md" download>下载 Markdown</a>
+      <a class="dashboard-link" href="./dashboard/frames.html">打开监控</a>
+        <a class="dashboard-link" href="./doc/">API 文档</a>
+        <a class="download-link" href="./方案.md" download>下载 Markdown</a>
       </div>
     </div>
   </header>
@@ -37,7 +38,7 @@
     <main id="main-content" class="document" tabindex="-1">
       <div class="mobile-toolbar">
         <button id="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel-mobile">显示目录</button>
-        <a href="/方案.md" download>下载 Markdown</a>
+        <a href="./方案.md" download>下载 Markdown</a>
       </div>
       <div id="toc-panel-mobile" class="mobile-toc" hidden>
         <nav id="toc-mobile" aria-label="移动端文档目录"></nav>
@@ -47,7 +48,7 @@
       </article>
       <footer class="document-footer">
         <span>IoT Monitor · 方案阶段</span>
-        <a href="/方案.md">查看原始 Markdown</a>
+        <a href="./方案.md">查看原始 Markdown</a>
       </footer>
     </main>
   </div>
@@ -130,7 +131,7 @@
         toggle.textContent = open ? '隐藏目录' : '显示目录';
       });
 
-      fetch('/content.html', { headers: { 'Accept': 'text/html' } })
+      fetch('./content.html', { headers: { 'Accept': 'text/html' } })
         .then((response) => {
           if (!response.ok) throw new Error('content request failed');
           return response.text();
@@ -140,7 +141,7 @@
           buildToc();
           tocMobile.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMobileToc));
         })
-        .catch(() => fetch('/方案.md'))
+        .catch(() => fetch('./方案.md'))
         .then((response) => response && response.text ? response.text() : '')
         .then((markdown) => {
           if (markdown && content.querySelector('.loading')) {

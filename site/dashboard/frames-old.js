@@ -1,4 +1,6 @@
 (() => {
+  const API_BASE_URL = new URL('../api/v1/', document.currentScript.src);
+  const apiUrl = (route) => new URL(route, API_BASE_URL);
   const state = {
     device: '',
     direction: '',
@@ -368,7 +370,7 @@
     const params = new URLSearchParams();
     if (requestedDevice) params.set('device_id', requestedDevice);
     try {
-      const response = await fetch(`/api/v1/dlt645/status?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const response = await fetch(`${apiUrl('dlt645/status')}?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       if (state.device !== requestedDevice) return;
@@ -390,7 +392,7 @@
     if (state.device) params.set('device_id', state.device);
     if (state.direction) params.set('direction', state.direction);
     try {
-      const response = await fetch(`/api/v1/dlt645/frame?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const response = await fetch(`${apiUrl('dlt645/frame')}?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       if (`${state.device}|${state.direction}` !== requestKey) return;
@@ -412,7 +414,7 @@
     ['voltage-a', 'current-a', 'instantaneous-active-power', 'temperature'].forEach((key) => params.append('metric_key', key));
     if (requestedDevice) params.set('device_id', requestedDevice);
     try {
-      const response = await fetch(`/api/v1/dlt645/trends?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const response = await fetch(`${apiUrl('dlt645/trends')}?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       if (state.device !== requestedDevice) return;
@@ -442,7 +444,7 @@
     const params = new URLSearchParams({ days: '30' });
     if (requestedDevice) params.set('device_id', requestedDevice);
     try {
-      const response = await fetch(`/api/v1/dlt645/summary?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const response = await fetch(`${apiUrl('dlt645/summary')}?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       if (state.device === requestedDevice) applyEnergySummary(result);

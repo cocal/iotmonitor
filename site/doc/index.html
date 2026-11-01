@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="IoT Monitor 电力表原始帧 API 文档：标准 443 域名入口、DL/T 645-2007、IM1253B Modbus-RTU 和 ESP8266-12F 示例。">
   <title>电力遥测 API 文档 | IoT Monitor</title>
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/doc/styles.css">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body class="api-page">
   <a class="skip-link" href="#main-content">跳到正文</a>
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="/" aria-label="IoT Monitor 首页">
+      <a class="brand" href="../" aria-label="IoT Monitor 首页">
         <span class="brand-mark" aria-hidden="true">IM</span>
         <span>
           <strong>IoT Monitor</strong>
@@ -21,8 +22,8 @@
       </a>
       <div class="header-actions">
         <span class="api-status"><span class="status-dot" aria-hidden="true"></span> API v1 · 443</span>
-        <a class="dashboard-link" href="/dashboard/frames.html">监控页面</a>
-        <a class="download-link" href="/">方案文档</a>
+        <a class="dashboard-link" href="../dashboard/frames.html">监控页面</a>
+        <a class="download-link" href="../">方案文档</a>
       </div>
     </div>
   </header>
@@ -228,9 +229,9 @@ void loop() {
             <small>Arduino 1.6.8 · ESP8266 Core 2.3.0 · Generic ESP8266 Module</small>
           </div>
           <div class="artifact-actions">
-            <a class="artifact-link artifact-primary" href="/doc/files/iotmonitor-esp8266-arduino-1.6.8-v2.zip" download>下载 ZIP</a>
-            <a class="artifact-link" href="/doc/files/iotmonitor_esp8266_legacy.ino" download>仅下载 .ino</a>
-            <a class="artifact-link" href="/doc/files/esp8266_api_simulator.ino" download>API 模拟程序</a>
+            <a class="artifact-link artifact-primary" href="./files/iotmonitor-esp8266-arduino-1.6.8-v2.zip" download>下载 ZIP</a>
+            <a class="artifact-link" href="./files/iotmonitor_esp8266_legacy.ino" download>仅下载 .ino</a>
+            <a class="artifact-link" href="./files/esp8266_api_simulator.ino" download>API 模拟程序</a>
           </div>
         </div>
 
@@ -284,7 +285,7 @@ const char DEVICE_TOKEN[] = "服务器分配的设备 Token";</code></pre>
         <p>如果完整程序在真机上没有上传成功，可下载电脑端 <code>DL/T 645 电表模拟器</code>。它通过第二个 USB-RS485 适配器接到 ESP8266 的同一条 A/B 总线，收到查询后返回固定的合法响应；这样可以单独验证 <code>pollMeter()</code>、串口接收和 API 上报。</p>
         <div class="artifact-bar">
           <div><strong>电脑端模拟器</strong><small>Python 3 · USB-RS485 · 2400 / 8E1</small></div>
-          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="/doc/files/dlt645_meter_simulator.py" download>下载 .py</a><a class="artifact-link" href="/doc/files/meter-simulator-README.md" download>使用说明</a></div>
+          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="./files/dlt645_meter_simulator.py" download>下载 .py</a><a class="artifact-link" href="./files/meter-simulator-README.md" download>使用说明</a></div>
         </div>
         <div class="code-card compact-code">
           <div class="code-card-head"><span>Windows</span><button class="copy-button copy-dark" type="button" data-copy-target="#meter-simulator-command">复制</button></div>
@@ -343,7 +344,7 @@ const bool METER_ADDRESS_IS_CONFIGURED = true;
         <p>IM1253B 与 DDSU666 的接口不同：它使用 TTL UART，默认 <code>4800 bps · 8N1</code>，不需要 RS485 收发器、DE、/RE 或 GPIO5。ESP8266-12F 的 <code>GPIO1/TX → IM1253B RX</code>、<code>GPIO3/RX → IM1253B TX</code>，日志仍从 GPIO2 输出。</p>
         <div class="artifact-bar">
           <div><span class="verified-pill">整块读取版</span><strong>ESP8266-12F IM1253B client</strong><small>Arduino 1.6.8 · ESP8266 Core 2.3.0 · 每轮一次查询与一次上报</small></div>
-          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="/doc/files/im1253b_esp8266.ino" download>下载 .ino</a><a class="artifact-link" href="/doc/files/im1253b-esp8266-design.md" download>下载协议说明</a></div>
+          <div class="artifact-actions"><a class="artifact-link artifact-primary" href="./files/im1253b_esp8266.ino" download>下载 .ino</a><a class="artifact-link" href="./files/im1253b-esp8266-design.md" download>下载协议说明</a></div>
         </div>
         <div class="subheading"><h3>数据项与单位</h3><span>Registers</span></div>
         <div class="table-wrap">
@@ -436,7 +437,7 @@ CRC: Modbus CRC-16，初值 0xFFFF，多项式 0xA001，低字节先发送
 
       <footer class="api-footer">
         <span>IoT Monitor · API 文档 v1</span>
-        <a href="/">返回方案文档</a>
+        <a href="../">返回方案文档</a>
       </footer>
     </main>
   </div>
